@@ -1,89 +1,89 @@
-import type { Config } from "tailwindcss";
+// import type { Config } from "tailwindcss";
 
-const config: Config = {
-  darkMode: "class",
+// const config: Config = {
+//   darkMode: ["class"],
 
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-  ],
+//   content: [
+//     "./app/**/*.{ts,tsx}",
+//     "./components/**/*.{ts,tsx}",
+//     "./src/**/*.{ts,tsx}",
+//   ],
 
-  theme: {
-    extend: {
-      colors: {
-        border: "rgb(var(--border) / <alpha-value>)",
-        input: "rgb(var(--input) / <alpha-value>)",
-        ring: "rgb(var(--ring) / <alpha-value>)",
+//   theme: {
+//     extend: {
+//       colors: {
+//         border: "hsl(var(--border))",
+//         input: "hsl(var(--input))",
+//         ring: "hsl(var(--ring))",
 
-        background: "rgb(var(--background) / <alpha-value>)",
-        foreground: "rgb(var(--foreground) / <alpha-value>)",
+//         background: "hsl(var(--background))",
+//         foreground: "hsl(var(--foreground))",
 
-        primary: {
-          DEFAULT: "rgb(var(--primary) / <alpha-value>)",
-          foreground: "rgb(var(--primary-foreground) / <alpha-value>)",
-        },
+//         primary: {
+//           DEFAULT: "hsl(var(--primary))",
+//           foreground: "hsl(var(--primary-foreground))",
+//         },
 
-        secondary: {
-          DEFAULT: "rgb(var(--secondary) / <alpha-value>)",
-          foreground: "rgb(var(--secondary-foreground) / <alpha-value>)",
-        },
+//         secondary: {
+//           DEFAULT: "hsl(var(--secondary))",
+//           foreground: "hsl(var(--secondary-foreground))",
+//         },
 
-        accent: {
-          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
-          foreground: "rgb(var(--accent-foreground) / <alpha-value>)",
-        },
+//         accent: {
+//           DEFAULT: "hsl(var(--accent))",
+//           foreground: "hsl(var(--accent-foreground))",
+//         },
 
-        destructive: {
-          DEFAULT: "rgb(var(--destructive) / <alpha-value>)",
-          foreground: "rgb(var(--destructive-foreground) / <alpha-value>)",
-        },
+//         destructive: {
+//           DEFAULT: "hsl(var(--destructive))",
+//           foreground: "hsl(var(--destructive-foreground))",
+//         },
 
-        card: {
-          DEFAULT: "rgb(var(--card) / <alpha-value>)",
-          foreground: "rgb(var(--card-foreground) / <alpha-value>)",
-        },
+//         card: {
+//           DEFAULT: "hsl(var(--card))",
+//           foreground: "hsl(var(--card-foreground))",
+//         },
 
-        popover: {
-          DEFAULT: "rgb(var(--popover) / <alpha-value>)",
-          foreground: "rgb(var(--popover-foreground) / <alpha-value>)",
-        },
+//         popover: {
+//           DEFAULT: "hsl(var(--popover))",
+//           foreground: "hsl(var(--popover-foreground))",
+//         },
 
-        muted: {
-          DEFAULT: "rgb(var(--muted) / <alpha-value>)",
-          foreground: "rgb(var(--muted-foreground) / <alpha-value>)",
-        },
-      },
+//         muted: {
+//           DEFAULT: "hsl(var(--muted))",
+//           foreground: "hsl(var(--muted-foreground))",
+//         },
+//       },
 
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
+//       borderRadius: {
+//         lg: "var(--radius)",
+//         md: "calc(var(--radius) - 2px)",
+//         sm: "calc(var(--radius) - 4px)",
+//       },
 
-      boxShadow: {
-        card: "0 10px 25px rgba(0,0,0,0.08)",
-        soft: "0 2px 10px rgba(0,0,0,0.05)",
-      },
+//       boxShadow: {
+//         card: "0 10px 25px rgba(0,0,0,0.08)",
+//         soft: "0 2px 10px rgba(0,0,0,0.05)",
+//       },
 
-      transitionTimingFunction: {
-        smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
-      },
+//       transitionTimingFunction: {
+//         smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
+//       },
 
-      keyframes: {
-        fadeIn: {
-          "0%": { opacity: "0", transform: "translateY(6px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-      },
+//       keyframes: {
+//         fadeIn: {
+//           "0%": { opacity: "0", transform: "translateY(6px)" },
+//           "100%": { opacity: "1", transform: "translateY(0)" },
+//         },
+//       },
 
-      animation: {
-        fadeIn: "fadeIn 0.3s ease-out",
-      },
-    },
-  },
+//       animation: {
+//         fadeIn: "fadeIn 0.3s ease-out",
+//       },
+//     },
+//   },
 
-  plugins: [],
-};
+//   plugins: [],
+// };
 
-export default config;
+// export default config;
