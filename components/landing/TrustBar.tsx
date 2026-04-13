@@ -1,88 +1,90 @@
-'use client';
+"use client";
 
-import { motion } from 'framer-motion';
+import { motion } from "framer-motion";
+
+const PARTNERS = [
+  { name: "BUET", type: "Tech" },
+  { name: "NSU", type: "Private" },
+  { name: "DU", type: "Public" },
+  { name: "BRAC", type: "NGO" },
+  { name: "AIUB", type: "Tech" },
+  { name: "IUT", type: "Eng" },
+  { name: "MIST", type: "Eng" },
+];
+
+const STATS = [
+  { label: "Optimized CVs", value: "10k+" },
+  { label: "Mock Sessions", value: "5k+" },
+  { label: "Success Rate", value: "92%" },
+  { label: "Active Users", value: "2k+" },
+];
 
 export default function TrustBar() {
-  const partners = [
-    { name: 'BUET', type: 'Tech' },
-    { name: 'NSU', type: 'Private' },
-    { name: 'DU', type: 'Public' },
-    { name: 'BRAC', type: 'NGO' },
-    { name: 'AIUB', type: 'Tech' },
-    { name: 'IUT', type: 'Eng' },
-    { name: 'MIST', type: 'Eng' },
-  ];
-
-  // We double the array to create a seamless infinite loop
-  const duplicatedPartners = [...partners, ...partners];
+  // ৩ বার ডুপ্লিকেট করা হয়েছে বড় স্ক্রিনে লুপের গ্যাপ এড়ানোর জন্য
+  const duplicatedPartners = [...PARTNERS, ...PARTNERS, ...PARTNERS];
 
   return (
-    <section className="py-16 border-y border-slate-100 bg-white overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6 mb-10 text-center">
-        <motion.p 
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+    <section className="py-20 border-y border-slate-100 bg-white/50 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6 mb-12 text-center">
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-xs font-bold uppercase tracking-[0.3em] text-slate-400"
+          className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400"
         >
-          Trusted by the next generation of talent from
+          Empowering future leaders from
         </motion.p>
       </div>
 
-      <div className="relative flex overflow-hidden group">
-        {/* Continuous Scrolling Container */}
-        <motion.div 
-          className="flex gap-20 items-center whitespace-nowrap"
-          animate={{
-            x: ['0%', '-50%'],
-          }}
+      <div className="relative flex overflow-hidden">
+        <motion.div
+          aria-hidden="true"
+          className="flex gap-12 md:gap-24 items-center whitespace-nowrap will-change-transform"
+          animate={{ x: ["0%", "-33.33%"] }}
           transition={{
-            duration: 20,
+            duration: 30, // স্পিড একটু কমানো হয়েছে যাতে পড়া যায়
             ease: "linear",
             repeat: Infinity,
           }}
         >
           {duplicatedPartners.map((partner, index) => (
-            <div 
-              key={index}
-              className="flex items-center gap-3 grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-500 cursor-default"
+            <div
+              key={`${partner.name}-${index}`}
+              className="flex items-center gap-3 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-default"
             >
-              <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-              <span className="text-3xl md:text-4xl font-black tracking-tighter text-slate-800">
+              <span className="text-xl md:text-2xl font-black tracking-tighter text-slate-900">
                 {partner.name}
               </span>
-              <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+              <span className="text-[9px] font-bold border border-slate-100 px-2 py-0.5 rounded text-slate-400 uppercase tracking-tighter">
                 {partner.type}
               </span>
             </div>
           ))}
         </motion.div>
 
-        {/* Gradient Overlays for smooth fading edges */}
-        <div className="absolute inset-y-0 left-0 w-32 bg-linear-to-r from-white to-transparent z-10" />
-        <div className="absolute inset-y-0 right-0 w-32 bg-linear-to-l from-white to-transparent z-10" />
+        {/* Gradient Overlays - প্রশস্ত করা হয়েছে যাতে ট্রানজিশন স্মুথ লাগে */}
+        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-white via-white/80 to-transparent z-10" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-white via-white/80 to-transparent z-10" />
       </div>
 
-      {/* Stats Section */}
-      <div className="max-w-5xl mx-auto px-6 mt-16 grid grid-cols-2 md:grid-cols-4 gap-8">
-        {[
-          { label: 'Resumes Optimized', value: '10k+' },
-          { label: 'Mock Interviews', value: '5k+' },
-          { label: 'Success Rate', value: '92%' },
-          { label: 'Active Users', value: '2k+' },
-        ].map((stat, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            className="text-center"
-          >
-            <h4 className="text-3xl font-black text-slate-900 leading-none">{stat.value}</h4>
-            <p className="text-xs font-bold text-emerald-600 uppercase mt-2 tracking-wider">{stat.label}</p>
-          </motion.div>
-        ))}
+      <div className="max-w-6xl mx-auto px-6 mt-20">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          {STATS.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, x: -10 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+              className="pl-6 border-l border-slate-100"
+            >
+              <h4 className="text-3xl font-black text-slate-900 tracking-tight">{stat.value}</h4>
+              <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 tracking-widest leading-none">
+                {stat.label}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   );

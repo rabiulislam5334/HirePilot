@@ -1,3 +1,4 @@
+import Features from '@/components/landing/Features';
 import Hero from '@/components/landing/hero';
 import TrustBar from '@/components/landing/TrustBar';
 import PublicNavbar from '@/components/layout/PublicNavbar';
@@ -9,7 +10,8 @@ const homePage = () => {
       <PublicNavbar></PublicNavbar>
      <Hero/>
      <TrustBar></TrustBar>
-
+     <Features>
+     </Features>
     </div>
   );
 };
