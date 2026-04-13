@@ -1,9 +1,15 @@
+import Hero from '@/components/landing/hero';
+import TrustBar from '@/components/landing/TrustBar';
+import PublicNavbar from '@/components/layout/PublicNavbar';
 import React from 'react';
 
 const homePage = () => {
   return (
     <div>
-      <h1>this is home page</h1>
+      <PublicNavbar></PublicNavbar>
+     <Hero/>
+     <TrustBar></TrustBar>
+
     </div>
   );
 };
