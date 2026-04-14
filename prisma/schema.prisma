@@ -1,11 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
- 
+  
 }
 
 model Account {
@@ -26,23 +26,36 @@ model Account {
 }
 
 model Resume {
-  id           String   @id @default(cuid())
-  userId       String
-  user         Account  @relation(fields: [userId], references: [id])
-  originalUrl  String
-  optimizedUrl String?
-  parsedText   String?
-  atsScore     Int?
-  jsonData     Json?
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  user              Account  @relation(fields: [userId], references: [id])
+  
+  name              String   // রেজুমের একটি নাম (যেমন: Frontend_Resume_v1)
+  originalUrl       String   // আপলোড করা PDF এর লিঙ্ক
+  optimizedUrl      String?  // AI দ্বারা তৈরি নতুন PDF বা ফাইলের লিঙ্ক
+  
+  parsedText        String?  @db.Text // PDF থেকে এক্সট্র্যাক্ট করা টেক্সট
+  atsScore          Int?     @default(0)
+  
+  // AI Analysis Data
+  skills            String[] // রেজুমে থেকে খুঁজে পাওয়া স্কিলস
+  feedback          Json?    // AI প্রদত্ত উন্নতির জায়গাগুলো (Strengths/Weaknesses)
+  optimizedContent  String?  @db.Text // AI দ্বারা রি-রাইট করা রেজুমে কন্টেন্ট
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  applications      Application[]
+
+  @@index([userId])
 }
 
 model JobPosting {
   id           String   @id @default(cuid())
   title        String
   company      String
-  description  String
-  requirements Json
+  description  String   @db.Text
+  requirements Json     // কী কী স্কিল দরকার
   location     String?
   salaryRange  String?
   createdAt    DateTime @default(now())
@@ -55,34 +68,35 @@ model Application {
   userId     String
   jobId      String
   resumeId   String
-  status     String   @default("pending")
+  status     String   @default("pending") // pending, short-listed, rejected
   matchScore Int?
   appliedAt  DateTime @default(now())
 
-  user Account    @relation(fields: [userId], references: [id])
-  job  JobPosting @relation(fields: [jobId], references: [id])
+  user   Account    @relation(fields: [userId], references: [id])
+  job    JobPosting @relation(fields: [jobId], references: [id])
+  resume Resume     @relation(fields: [resumeId], references: [id])
 }
 
 model InterviewSession {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   jobTitle    String?
-  questions   Json[]
-  transcript  Json?
+  questions   Json[]    // AI এর করা প্রশ্নসমূহ
+  transcript  Json?     // ইউজারের উত্তরসমূহ
   score       Int?
-  feedback    String?
-  status      String   @default("ongoing")
-  startedAt   DateTime @default(now())
+  feedback    String?   @db.Text
+  status      String    @default("ongoing")
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
 
   user Account @relation(fields: [userId], references: [id])
 }
 
 model Leaderboard {
-  id         String  @id @default(cuid())
-  userId     String  @unique
-  user       Account @relation(fields: [userId], references: [id])
-  totalScore Int     @default(0)
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       Account  @relation(fields: [userId], references: [id])
+  totalScore Int      @default(0)
   rank       Int?
   updatedAt  DateTime @updatedAt
 }
