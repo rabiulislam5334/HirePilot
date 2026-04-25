@@ -1,6 +1,14 @@
 import { generateObject, generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
+
+// createGroq() — @ai-sdk/groq v3+ এ এভাবে করতে হয়
+const groqClient = createGroq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+const FAST_MODEL = groqClient("llama-3.3-70b-versatile");
+const QUICK_MODEL = groqClient("llama3-8b-8192");
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -8,18 +16,14 @@ export const resumeAnalysisSchema = z.object({
   atsScore: z.number().min(0).max(100).describe("ATS compatibility score"),
   strengths: z.array(z.string()).describe("Strong points in the resume"),
   weaknesses: z.array(z.string()).describe("Areas that need improvement"),
-  keywordSuggestions: z
-    .array(z.string())
-    .describe("Important keywords missing from resume"),
-  improvedBullets: z
-    .array(
-      z.object({
-        original: z.string(),
-        improved: z.string(),
-        reason: z.string(),
-      })
-    )
-    .describe("4-6 bullet points rewritten with stronger action verbs and metrics"),
+  keywordSuggestions: z.array(z.string()).describe("Important keywords missing from resume"),
+  improvedBullets: z.array(
+    z.object({
+      original: z.string(),
+      improved: z.string(),
+      reason: z.string(),
+    })
+  ).describe("4-6 bullet points rewritten with stronger action verbs and metrics"),
   missingSkills: z.array(z.string()).describe("Skills likely missing for modern jobs"),
   overallFeedback: z.string().describe("Constructive paragraph of overall feedback"),
   extractedSkills: z.array(z.string()).describe("Skills detected in the resume"),
@@ -51,13 +55,6 @@ export const interviewEvalSchema = z.object({
 });
 
 export type InterviewEval = z.infer<typeof interviewEvalSchema>;
-
-// ─── Models ───────────────────────────────────────────────────────────────────
-
-// llama-3.3-70b-versatile — best free Groq model for structured output
-const FAST_MODEL = groq("llama-3.3-70b-versatile");
-// llama3-8b-8192 — faster, for simple tasks like follow-up questions
-const QUICK_MODEL = groq("llama3-8b-8192");
 
 // ─── Resume Analysis ──────────────────────────────────────────────────────────
 
@@ -194,16 +191,8 @@ export async function getCoachResponse(
 ): Promise<string> {
   const systemPrompt = `You are HirePilot's AI Career Coach — an expert in resume optimization, interview preparation, salary negotiation, and career growth.
 
-${
-  userContext?.jobTitle
-    ? `The user is targeting: ${userContext.jobTitle} roles.`
-    : ""
-}
-${
-  userContext?.skills?.length
-    ? `Their skills include: ${userContext.skills.slice(0, 10).join(", ")}.`
-    : ""
-}
+${userContext?.jobTitle ? `The user is targeting: ${userContext.jobTitle} roles.` : ""}
+${userContext?.skills?.length ? `Their skills include: ${userContext.skills.slice(0, 10).join(", ")}.` : ""}
 
 Be concise, actionable, and encouraging. Use bullet points when listing steps. Keep responses under 300 words unless the user asks for detail.`;
 
@@ -218,7 +207,7 @@ Be concise, actionable, and encouraging. Use bullet points when listing steps. K
   return text;
 }
 
-// ─── Communication Analysis ───────────────────────────────────────────────────
+// ─── Communication Analysis (local, no AI needed) ────────────────────────────
 
 export function analyzeTranscriptLocally(transcript: string): {
   fillerWordCount: number;
@@ -234,7 +223,7 @@ export function analyzeTranscriptLocally(transcript: string): {
 
   const lower = transcript.toLowerCase();
   const wordCount = transcript.split(/\s+/).filter(Boolean).length;
-  const estimatedDurationSec = Math.round((wordCount / 130) * 60); // avg 130 wpm
+  const estimatedDurationSec = Math.round((wordCount / 130) * 60);
   const speakingPaceWpm = estimatedDurationSec > 0
     ? Math.round((wordCount / estimatedDurationSec) * 60)
     : 0;

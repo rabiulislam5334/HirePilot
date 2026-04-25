@@ -1,16 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { SignInButton, SignUpButton } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { SignInButton, SignUpButton, useUser, UserButton } from '@clerk/nextjs';
 import { ChevronDown, Sparkles, Mic2, BarChart3, Rocket, ArrowRight } from 'lucide-react';
 
 export default function PublicNavbar() {
+  const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
+
   return (
     <nav className="sticky top-0 z-50 border-b border-slate-200/50 bg-white/80 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         
-        {/* Logo Section */}
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
           <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:rotate-6 transition-all">
             <Rocket className="text-white w-5 h-5" />
@@ -34,12 +37,9 @@ export default function PublicNavbar() {
               <ChevronDown className="w-4 h-4 transition-transform group-hover:rotate-180" />
             </button>
 
-            {/* Mega Menu Dropdown */}
-            {/* pt-2 ensures no gap between button and menu */}
             <div className="absolute top-full left-1/2 -translate-x-1/2 w-[850px] pt-2 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all duration-300">
               <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-8 grid grid-cols-3 gap-8">
                 
-                {/* Resume Intelligence */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-emerald-600 font-bold text-[11px] uppercase tracking-wider px-2">
                     <Sparkles className="w-4 h-4" /> Resume Intelligence
@@ -52,7 +52,6 @@ export default function PublicNavbar() {
                   </Link>
                 </div>
 
-                {/* Interview Mastery */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-violet-600 font-bold text-[11px] uppercase tracking-wider px-2">
                     <Mic2 className="w-4 h-4" /> Interview Mastery
@@ -65,7 +64,6 @@ export default function PublicNavbar() {
                   </Link>
                 </div>
 
-                {/* Growth & Career */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-amber-600 font-bold text-[11px] uppercase tracking-wider px-2">
                     <BarChart3 className="w-4 h-4" /> Growth Tools
@@ -90,19 +88,36 @@ export default function PublicNavbar() {
           ))}
         </div>
 
-        {/* Right Buttons */}
+        {/* Right Buttons — signed in হলে Dashboard + Avatar, না হলে Login/Signup */}
         <div className="flex items-center gap-3">
-          <SignInButton mode="modal">
-            <button className="text-sm font-bold text-slate-700 hover:text-emerald-600 px-4 transition-colors cursor-pointer">
-              Log in
-            </button>
-          </SignInButton>
-          
-          <SignUpButton mode="modal">
-            <button className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer">
-              Get Started Free
-            </button>
-          </SignUpButton>
+          {!isLoaded ? (
+            // Skeleton loader — flicker এড়াতে
+            <div className="w-32 h-10 bg-slate-100 rounded-xl animate-pulse" />
+          ) : isSignedIn ? (
+            <>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="text-sm font-bold text-slate-700 hover:text-emerald-600 px-4 transition-colors cursor-pointer"
+              >
+                Dashboard
+              </button>
+              <UserButton afterSignOutUrl="/" />
+            </>
+          ) : (
+            <>
+              <SignInButton mode="modal">
+                <button className="text-sm font-bold text-slate-700 hover:text-emerald-600 px-4 transition-colors cursor-pointer">
+                  Log in
+                </button>
+              </SignInButton>
+              
+              <SignUpButton mode="modal">
+                <button className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer">
+                  Get Started Free
+                </button>
+              </SignUpButton>
+            </>
+          )}
         </div>
       </div>
     </nav>

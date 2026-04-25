@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import {
   generateInterviewQuestions,
@@ -6,8 +6,6 @@ import {
   analyzeTranscriptLocally,
   type InterviewEval,
 } from "./aiService";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type InterviewCategory = "behavioral" | "technical" | "mixed";
 export type InterviewDifficulty = "easy" | "medium" | "hard";
@@ -19,7 +17,7 @@ export interface TranscriptEntry {
   answeredAt: string;
 }
 
-// ─── Session Management ───────────────────────────────────────────────────────
+// ─── Session ──────────────────────────────────────────────────────────────────
 
 export async function createInterviewSession(params: {
   clerkUserId: string;
@@ -78,7 +76,7 @@ export async function getNextQuestion(params: {
   const transcript = (session.transcript as TranscriptEntry[] | null) ?? [];
   const lastEntry = transcript[transcript.length - 1];
 
-  const question = await generateInterviewQuestions({
+  return generateInterviewQuestions({
     jobTitle: session.jobTitle ?? "Software Engineer",
     company: session.company ?? undefined,
     category: session.category as InterviewCategory,
@@ -86,11 +84,7 @@ export async function getNextQuestion(params: {
     previousQuestion: lastEntry?.question,
     previousAnswer: params.lastAnswer,
   });
-
-  return question;
 }
-
-// ─── Save Answer & Advance ────────────────────────────────────────────────────
 
 export async function saveAnswer(params: {
   sessionId: string;
@@ -136,11 +130,9 @@ export async function completeInterview(
       return { success: false, error: "No answers recorded" };
     }
 
-    // Communication analysis (fast, local)
     const allAnswers = transcript.map((t) => t.answer).join(" ");
     const commAnalysis = analyzeTranscriptLocally(allAnswers);
 
-    // AI evaluation (deeper)
     const evaluation = await evaluateInterview(
       transcript.map((t) => ({ question: t.question, answer: t.answer })),
       session.jobTitle ?? "the position"
@@ -160,28 +152,29 @@ export async function completeInterview(
       },
     });
 
-    // Update leaderboard
     await updateLeaderboard(clerkUserId, evaluation.overallScore, "interview");
 
     return { success: true, eval: evaluation };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Evaluation failed";
     console.error("[interviewService] complete error:", err);
-    return { success: false, error: err.message ?? "Evaluation failed" };
+    return { success: false, error: message };
   }
 }
 
 // ─── Leaderboard ─────────────────────────────────────────────────────────────
 
-const LEADERBOARD_KEY = "hirepilot:leaderboard:global";
-const WEEKLY_KEY = `hirepilot:leaderboard:weekly:${getWeekKey()}`;
+const GLOBAL_KEY = "hirepilot:leaderboard:global";
 
+// ❌ আগে module level এ call হচ্ছিল — runtime error দিত
+// ✅ এখন function call এর ভেতরে compute করা হচ্ছে
 function getWeekKey(): string {
   const now = new Date();
   const year = now.getFullYear();
   const week = Math.ceil(
     ((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + 1) / 7
   );
-  return `${year}:w${week}`;
+  return `hirepilot:leaderboard:weekly:${year}:w${week}`;
 }
 
 export async function updateLeaderboard(
@@ -190,15 +183,22 @@ export async function updateLeaderboard(
   type: "interview" | "resume"
 ) {
   const points = type === "interview" ? score : Math.floor(score / 2);
+  const weeklyKey = getWeekKey(); // ✅ runtime এ call হচ্ছে
 
-  // Redis sorted set — higher = better
-  await redis.zadd(LEADERBOARD_KEY, "XX", "GT", points, clerkUserId);
-  await redis.zadd(LEADERBOARD_KEY, "NX", points, clerkUserId);
-  await redis.zadd(WEEKLY_KEY, "XX", "GT", points, clerkUserId);
-  await redis.zadd(WEEKLY_KEY, "NX", points, clerkUserId);
-  await redis.expire(WEEKLY_KEY, 60 * 60 * 24 * 7); // 7 days
+  // ioredis zadd syntax: zadd(key, score, member)
+  // ❌ আগে: redis.zadd(key, "XX", "GT", points, member) — ioredis এ কাজ করে না
+  // ✅ এখন: আলাদাভাবে handle করা হচ্ছে
+  const currentGlobal = await redis.zscore(GLOBAL_KEY, clerkUserId);
+  if (currentGlobal === null || points > parseFloat(currentGlobal)) {
+    await redis.zadd(GLOBAL_KEY, points, clerkUserId);
+  }
 
-  // DB sync
+  const currentWeekly = await redis.zscore(weeklyKey, clerkUserId);
+  if (currentWeekly === null || points > parseFloat(currentWeekly)) {
+    await redis.zadd(weeklyKey, points, clerkUserId);
+  }
+  await redis.expire(weeklyKey, 60 * 60 * 24 * 7);
+
   await prisma.leaderboard.upsert({
     where: { userId: clerkUserId },
     update: {
@@ -217,8 +217,7 @@ export async function updateLeaderboard(
 }
 
 export async function getGlobalLeaderboard(limit = 20) {
-  // Get top users from Redis
-  const entries = await redis.zrevrange(LEADERBOARD_KEY, 0, limit - 1, "WITHSCORES");
+  const entries = await redis.zrevrange(GLOBAL_KEY, 0, limit - 1, "WITHSCORES");
 
   const results: Array<{ userId: string; score: number; rank: number }> = [];
   for (let i = 0; i < entries.length; i += 2) {
@@ -229,7 +228,6 @@ export async function getGlobalLeaderboard(limit = 20) {
     });
   }
 
-  // Enrich with user data from DB
   const userIds = results.map((r) => r.userId);
   const accounts = await prisma.account.findMany({
     where: { clerkId: { in: userIds } },
@@ -241,7 +239,7 @@ export async function getGlobalLeaderboard(limit = 20) {
     return {
       ...r,
       name: account?.name ?? "Anonymous",
-      image: account?.image,
+      image: account?.image ?? null,
       xp: account?.leaderboard?.xp ?? 0,
       level: account?.leaderboard?.level ?? 1,
       badges: account?.leaderboard?.badges ?? [],
@@ -249,8 +247,8 @@ export async function getGlobalLeaderboard(limit = 20) {
   });
 }
 
-export async function getUserRank(clerkUserId: string) {
-  const rank = await redis.zrevrank(LEADERBOARD_KEY, clerkUserId);
+export async function getUserRank(clerkUserId: string): Promise<number | null> {
+  const rank = await redis.zrevrank(GLOBAL_KEY, clerkUserId);
   return rank !== null ? rank + 1 : null;
 }
 
@@ -278,11 +276,11 @@ export async function getInterviewAnalytics(clerkUserId: string) {
     sessions.reduce((s, r) => s + (r.score ?? 0), 0) / sessions.length
   );
 
-  // Simple trend: last 3 vs previous 3
   const recent = sessions.slice(-3).map((s) => s.score ?? 0);
   const older = sessions.slice(-6, -3).map((s) => s.score ?? 0);
   const recentAvg = recent.reduce((a, b) => a + b, 0) / (recent.length || 1);
   const olderAvg = older.reduce((a, b) => a + b, 0) / (older.length || 1);
+
   const trend =
     older.length === 0
       ? "not enough data"

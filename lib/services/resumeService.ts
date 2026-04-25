@@ -1,7 +1,6 @@
-import { prisma } from "@/lib/prisma";
+// prisma.ts এ default export আছে, তাই default import করতে হবে
+import prisma from "@/lib/prisma";
 import { analyzeResume, type ResumeAnalysis } from "./aiService";
-
-// ─── Create / Upload ──────────────────────────────────────────────────────────
 
 export async function createResume(params: {
   clerkUserId: string;
@@ -16,12 +15,10 @@ export async function createResume(params: {
       parsedText: params.parsedText,
       originalFileName: params.originalFileName,
       originalUrl: params.originalUrl ?? "pending",
-      name: params.name ?? params.originalFileName.replace(".pdf", ""),
+      name: params.name ?? params.originalFileName.replace(/\.pdf$/i, ""),
     },
   });
 }
-
-// ─── Get ──────────────────────────────────────────────────────────────────────
 
 export async function getResumesByUser(clerkUserId: string) {
   return prisma.resume.findMany({
@@ -45,8 +42,6 @@ export async function getResumeById(id: string, clerkUserId: string) {
     where: { id, userId: clerkUserId },
   });
 }
-
-// ─── AI Analysis ─────────────────────────────────────────────────────────────
 
 export async function runResumeAIAnalysis(
   resumeId: string,
@@ -74,25 +69,20 @@ export async function runResumeAIAnalysis(
     });
 
     return { success: true, data: analysis };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "AI analysis failed";
     console.error("[resumeService] AI analysis error:", err);
-    return { success: false, error: err.message ?? "AI analysis failed" };
+    return { success: false, error: message };
   }
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
 export async function deleteResume(id: string, clerkUserId: string) {
-  // verify ownership first
   const resume = await prisma.resume.findFirst({
     where: { id, userId: clerkUserId },
   });
   if (!resume) throw new Error("Resume not found or unauthorized");
-
   return prisma.resume.delete({ where: { id } });
 }
-
-// ─── Stats for Dashboard ─────────────────────────────────────────────────────
 
 export async function getResumeDashboardStats(clerkUserId: string) {
   const resumes = await prisma.resume.findMany({
@@ -108,14 +98,8 @@ export async function getResumeDashboardStats(clerkUserId: string) {
           analyzed.reduce((sum, r) => sum + (r.atsScore ?? 0), 0) / analyzed.length
         )
       : 0;
-  const bestScore = analyzed.length > 0
-    ? Math.max(...analyzed.map((r) => r.atsScore ?? 0))
-    : 0;
+  const bestScore =
+    analyzed.length > 0 ? Math.max(...analyzed.map((r) => r.atsScore ?? 0)) : 0;
 
-  return {
-    total: resumes.length,
-    analyzed: analyzed.length,
-    avgScore,
-    bestScore,
-  };
+  return { total: resumes.length, analyzed: analyzed.length, avgScore, bestScore };
 }

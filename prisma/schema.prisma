@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model Account {
@@ -19,33 +20,39 @@ model Account {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  resumes          Resume[]
-  applications     Application[]
-  interviews       InterviewSession[]
-  leaderboard      Leaderboard?
+  resumes      Resume[]
+  applications Application[]
+  interviews   InterviewSession[]
+  leaderboard  Leaderboard?
+  coachChats   CoachChat[]
 }
 
 model Resume {
-  id                String   @id @default(cuid())
-  userId            String
-  user              Account  @relation(fields: [userId], references: [id])
-  
-  name              String   // রেজুমের একটি নাম (যেমন: Frontend_Resume_v1)
-  originalUrl       String   // আপলোড করা PDF এর লিঙ্ক
-  optimizedUrl      String?  // AI দ্বারা তৈরি নতুন PDF বা ফাইলের লিঙ্ক
-  
-  parsedText        String?  @db.Text // PDF থেকে এক্সট্র্যাক্ট করা টেক্সট
-  atsScore          Int?     @default(0)
-  
-  // AI Analysis Data
-  skills            String[] // রেজুমে থেকে খুঁজে পাওয়া স্কিলস
-  feedback          Json?    // AI প্রদত্ত উন্নতির জায়গাগুলো (Strengths/Weaknesses)
-  optimizedContent  String?  @db.Text // AI দ্বারা রি-রাইট করা রেজুমে কন্টেন্ট
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(cuid())
+  userId           String
+  user             Account  @relation(fields: [userId], references: [clerkId])
 
-  applications      Application[]
+  name             String   @default("My Resume")
+  originalFileName String?
+  originalUrl      String   @default("pending")
+  optimizedUrl     String?
+
+  parsedText       String?  @db.Text
+  atsScore         Int?     @default(0)
+
+  // AI Analysis — stored as JSON
+  jsonData         Json?    // full AI output (strengths, weaknesses, bullets, keywords…)
+  skills           String[]
+  feedback         String?  @db.Text
+  optimizedContent String?  @db.Text
+
+  // Job matching — pgvector embedding
+  embedding        Unsupported("vector(1536)")?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  applications Application[]
 
   @@index([userId])
 }
@@ -55,9 +62,13 @@ model JobPosting {
   title        String
   company      String
   description  String   @db.Text
-  requirements Json     // কী কী স্কিল দরকার
+  requirements Json
   location     String?
   salaryRange  String?
+
+  // pgvector embedding for semantic matching
+  embedding    Unsupported("vector(1536)")?
+
   createdAt    DateTime @default(now())
 
   applications Application[]
@@ -68,35 +79,71 @@ model Application {
   userId     String
   jobId      String
   resumeId   String
-  status     String   @default("pending") // pending, short-listed, rejected
+  status     String   @default("wishlist") // wishlist | applied | interview | offer | rejected
   matchScore Int?
+  notes      String?  @db.Text
   appliedAt  DateTime @default(now())
 
-  user   Account    @relation(fields: [userId], references: [id])
+  // Interview schedule
+  interviewDate DateTime?
+  nextStep      String?
+
+  user   Account    @relation(fields: [userId], references: [clerkId])
   job    JobPosting @relation(fields: [jobId], references: [id])
   resume Resume     @relation(fields: [resumeId], references: [id])
+
+  @@index([userId])
+  @@index([status])
 }
 
 model InterviewSession {
   id          String    @id @default(cuid())
   userId      String
   jobTitle    String?
-  questions   Json[]    // AI এর করা প্রশ্নসমূহ
-  transcript  Json?     // ইউজারের উত্তরসমূহ
+  company     String?
+  difficulty  String    @default("medium") // easy | medium | hard
+  category    String    @default("mixed")  // behavioral | technical | mixed
+
+  questions   Json[]
+  transcript  Json?
   score       Int?
   feedback    String?   @db.Text
-  status      String    @default("ongoing")
+
+  // Communication analysis
+  fillerWordCount   Int?
+  speakingPaceWpm   Int?
+  confidenceScore   Int?
+  clarityScore      Int?
+
+  status      String    @default("ongoing") // ongoing | completed
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
-  user Account @relation(fields: [userId], references: [id])
+  user Account @relation(fields: [userId], references: [clerkId])
+
+  @@index([userId])
 }
 
 model Leaderboard {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       Account  @relation(fields: [userId], references: [id])
-  totalScore Int      @default(0)
-  rank       Int?
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        Account  @relation(fields: [userId], references: [clerkId])
+  totalScore  Int      @default(0)
+  xp          Int      @default(0)
+  level       Int      @default(1)
+  rank        Int?
+  weeklyScore Int      @default(0)
+  badges      String[]
+  updatedAt   DateTime @updatedAt
+}
+
+model CoachChat {
+  id        String   @id @default(cuid())
+  userId    String
+  user      Account  @relation(fields: [userId], references: [clerkId])
+  role      String   // user | assistant
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

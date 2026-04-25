@@ -1,7 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { analyzeJobMatch, type JobMatch } from "./aiService";
-
-// ─── AI-based Match (no embedding needed — works immediately) ─────────────────
 
 export async function matchResumeToJob(params: {
   resumeId: string;
@@ -27,13 +25,12 @@ export async function matchResumeToJob(params: {
     );
 
     return { success: true, data: result };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Match analysis failed";
     console.error("[jobMatchService] match error:", err);
-    return { success: false, error: err.message ?? "Match analysis failed" };
+    return { success: false, error: message };
   }
 }
-
-// ─── Save Application with Match Score ────────────────────────────────────────
 
 export async function applyToJob(params: {
   clerkUserId: string;
@@ -42,7 +39,6 @@ export async function applyToJob(params: {
   matchScore?: number;
   notes?: string;
 }) {
-  // Upsert — don't allow duplicate applications
   const existing = await prisma.application.findFirst({
     where: {
       userId: params.clerkUserId,
@@ -66,32 +62,24 @@ export async function applyToJob(params: {
   });
 }
 
-// ─── Job Tracker (Kanban) ─────────────────────────────────────────────────────
-
-export type KanbanStatus =
-  | "wishlist"
-  | "applied"
-  | "interview"
-  | "offer"
-  | "rejected";
+export type KanbanStatus = "wishlist" | "applied" | "interview" | "offer" | "rejected";
 
 export async function getApplicationsByUser(clerkUserId: string) {
   return prisma.application.findMany({
     where: { userId: clerkUserId },
     include: {
       job: {
-        select: {
-          title: true,
-          company: true,
-          location: true,
-          salaryRange: true,
-        },
+        select: { title: true, company: true, location: true, salaryRange: true },
       },
       resume: { select: { name: true, atsScore: true } },
     },
     orderBy: { appliedAt: "desc" },
   });
 }
+
+export type ApplicationWithRelations = Awaited<
+  ReturnType<typeof getApplicationsByUser>
+>[number];
 
 export async function updateApplicationStatus(
   id: string,
@@ -109,8 +97,6 @@ export async function updateApplicationStatus(
     data: { status, ...data },
   });
 }
-
-// ─── Create JobPosting (manual entry) ────────────────────────────────────────
 
 export async function createJobPosting(data: {
   title: string;
@@ -132,12 +118,7 @@ export async function createJobPosting(data: {
   });
 }
 
-// ─── Kanban Board Data ────────────────────────────────────────────────────────
-
-export type KanbanBoard = Record<
-  KanbanStatus,
-  Awaited<ReturnType<typeof getApplicationsByUser>>
->;
+export type KanbanBoard = Record<KanbanStatus, ApplicationWithRelations[]>;
 
 export async function getKanbanBoard(clerkUserId: string): Promise<KanbanBoard> {
   const apps = await getApplicationsByUser(clerkUserId);
@@ -152,7 +133,7 @@ export async function getKanbanBoard(clerkUserId: string): Promise<KanbanBoard> 
 
   for (const app of apps) {
     const status = app.status as KanbanStatus;
-    if (board[status]) {
+    if (status in board) {
       board[status].push(app);
     }
   }
