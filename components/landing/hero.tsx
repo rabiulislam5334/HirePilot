@@ -6,13 +6,15 @@ import { Sparkles, ArrowRight, Play } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Hero() {
-  // Animation Variants for cleaner code
+ // Animation Variants for cleaner code
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6, ease: "easeOut" }
+    transition: { 
+      duration: 0.6, 
+      ease: "easeOut" as const // <--- এখানে 'as const' যোগ করুন
+    }
   };
-
   return (
     <section className="relative pt-32 pb-24 px-6 overflow-hidden min-h-[90vh] flex items-center">
       {/* Background Decorative Elements - High End Look */}
