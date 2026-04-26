@@ -1,32 +1,29 @@
-import { generateObject, generateText } from "ai";
+import { generateText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
 
-// createGroq() — @ai-sdk/groq v3+ এ এভাবে করতে হয়
 const groqClient = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
 const FAST_MODEL = groqClient("llama-3.3-70b-versatile");
-const QUICK_MODEL = groqClient("llama3-8b-8192");
+const QUICK_MODEL = groqClient("llama-3.1-8b-instant");
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 export const resumeAnalysisSchema = z.object({
-  atsScore: z.number().min(0).max(100).describe("ATS compatibility score"),
-  strengths: z.array(z.string()).describe("Strong points in the resume"),
-  weaknesses: z.array(z.string()).describe("Areas that need improvement"),
-  keywordSuggestions: z.array(z.string()).describe("Important keywords missing from resume"),
-  improvedBullets: z.array(
-    z.object({
-      original: z.string(),
-      improved: z.string(),
-      reason: z.string(),
-    })
-  ).describe("4-6 bullet points rewritten with stronger action verbs and metrics"),
-  missingSkills: z.array(z.string()).describe("Skills likely missing for modern jobs"),
-  overallFeedback: z.string().describe("Constructive paragraph of overall feedback"),
-  extractedSkills: z.array(z.string()).describe("Skills detected in the resume"),
+  atsScore: z.number().min(0).max(100),
+  strengths: z.array(z.string()),
+  weaknesses: z.array(z.string()),
+  keywordSuggestions: z.array(z.string()),
+  improvedBullets: z.array(z.object({
+    original: z.string(),
+    improved: z.string(),
+    reason: z.string(),
+  })),
+  missingSkills: z.array(z.string()),
+  overallFeedback: z.string(),
+  extractedSkills: z.array(z.string()),
 });
 
 export type ResumeAnalysis = z.infer<typeof resumeAnalysisSchema>;
@@ -56,26 +53,43 @@ export const interviewEvalSchema = z.object({
 
 export type InterviewEval = z.infer<typeof interviewEvalSchema>;
 
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function parseJSON<T>(text: string): T {
+  const clean = text
+    .replace(/```json\n?/g, "")
+    .replace(/```\n?/g, "")
+    .trim();
+  return JSON.parse(clean) as T;
+}
+
 // ─── Resume Analysis ──────────────────────────────────────────────────────────
 
 export async function analyzeResume(parsedText: string): Promise<ResumeAnalysis> {
-  const { object } = await generateObject({
+  const { text } = await generateText({
     model: FAST_MODEL,
-    schema: resumeAnalysisSchema,
     temperature: 0.3,
-    prompt: `You are an expert ATS resume optimizer and career coach.
+    prompt: `You are an expert ATS resume optimizer. Analyze this resume and return ONLY a valid JSON object with NO markdown and NO extra text.
 
-Analyze this resume and provide a detailed assessment:
-
+Resume:
 """
 ${parsedText.slice(0, 6000)}
 """
 
-Be specific and actionable. For improvedBullets, use strong action verbs and add quantified metrics where possible.
-Return only valid JSON matching the schema.`,
+Return exactly this JSON structure:
+{
+  "atsScore": <number 0-100>,
+  "strengths": ["..."],
+  "weaknesses": ["..."],
+  "keywordSuggestions": ["..."],
+  "improvedBullets": [{"original": "...", "improved": "...", "reason": "..."}],
+  "missingSkills": ["..."],
+  "overallFeedback": "...",
+  "extractedSkills": ["..."]
+}`,
   });
 
-  return object;
+  return parseJSON<ResumeAnalysis>(text);
 }
 
 // ─── Job Match Analysis ───────────────────────────────────────────────────────
@@ -85,30 +99,27 @@ export async function analyzeJobMatch(
   jobDescription: string,
   jobTitle: string
 ): Promise<JobMatch> {
-  const { object } = await generateObject({
+  const { text } = await generateText({
     model: FAST_MODEL,
-    schema: jobMatchSchema,
     temperature: 0.2,
-    prompt: `You are an expert recruiter and career coach.
-
-Compare this resume against the job description and provide a detailed match analysis.
+    prompt: `You are an expert recruiter. Compare this resume against the job description. Return ONLY valid JSON with NO markdown.
 
 Job Title: ${jobTitle}
+Job Description: """${jobDescription.slice(0, 3000)}"""
+Resume: """${resumeText.slice(0, 4000)}"""
 
-Job Description:
-"""
-${jobDescription.slice(0, 3000)}
-"""
-
-Resume:
-"""
-${resumeText.slice(0, 4000)}
-"""
-
-Be specific about what matches and what doesn't. The whyYouMatch field should be a compelling 2-3 sentence summary.`,
+Return exactly:
+{
+  "matchScore": <number 0-100>,
+  "matchReasons": ["..."],
+  "missingRequirements": ["..."],
+  "presentRequirements": ["..."],
+  "improvementSuggestions": ["..."],
+  "whyYouMatch": "..."
+}`,
   });
 
-  return object;
+  return parseJSON<JobMatch>(text);
 }
 
 // ─── Interview Question Generator ─────────────────────────────────────────────
@@ -121,32 +132,18 @@ export async function generateInterviewQuestions(params: {
   previousAnswer?: string;
   previousQuestion?: string;
 }): Promise<{ question: string; type: string; hint: string }> {
-  const { object } = await generateObject({
+  const { text } = await generateText({
     model: QUICK_MODEL,
-    schema: z.object({
-      question: z.string(),
-      type: z.enum(["behavioral", "technical", "situational"]),
-      hint: z.string().describe("A brief hint on what a good answer includes"),
-    }),
     temperature: 0.7,
-    prompt: `You are an experienced interviewer at ${params.company || "a top tech company"}.
-
+    prompt: `You are an interviewer at ${params.company || "a top tech company"}.
 Generate ONE interview question for a ${params.jobTitle} position.
-Difficulty: ${params.difficulty}
-Category: ${params.category}
-
-${
-  params.previousQuestion
-    ? `Previous question: "${params.previousQuestion}"
-Previous answer: "${params.previousAnswer?.slice(0, 500)}"
-Generate a relevant follow-up OR a new question on a different topic.`
-    : "Start with an opening question."
-}
-
-Make the question realistic and specific to the role.`,
+Difficulty: ${params.difficulty}, Category: ${params.category}
+${params.previousQuestion ? `Previous Q: "${params.previousQuestion}" | Previous A: "${params.previousAnswer?.slice(0, 300)}"` : ""}
+Return ONLY valid JSON:
+{"question": "...", "type": "behavioral|technical|situational", "hint": "..."}`,
   });
 
-  return object;
+  return parseJSON<{ question: string; type: string; hint: string }>(text);
 }
 
 // ─── Interview Evaluation ─────────────────────────────────────────────────────
@@ -159,28 +156,31 @@ export async function evaluateInterview(
     .map((t, i) => `Q${i + 1}: ${t.question}\nA${i + 1}: ${t.answer}`)
     .join("\n\n");
 
-  const { object } = await generateObject({
+  const { text } = await generateText({
     model: FAST_MODEL,
-    schema: interviewEvalSchema,
     temperature: 0.3,
-    prompt: `You are an expert interview coach evaluating a mock interview for a ${jobTitle} position.
+    prompt: `You are an expert interview coach. Evaluate this mock interview for a ${jobTitle} position. Return ONLY valid JSON with NO markdown.
 
-Full interview transcript:
+Transcript:
 """
 ${transcriptText.slice(0, 6000)}
 """
 
-Evaluate the candidate holistically. Check for:
-- STAR method usage in behavioral questions
-- Technical accuracy and depth
-- Communication clarity
-- Confidence and structure
-- Completeness of answers
-
-Provide specific, actionable feedback with concrete examples from their answers.`,
+Return exactly:
+{
+  "overallScore": <0-100>,
+  "technicalScore": <0-100>,
+  "communicationScore": <0-100>,
+  "starMethodScore": <0-100>,
+  "confidenceScore": <0-100>,
+  "strengths": ["..."],
+  "areasToImprove": ["..."],
+  "detailedFeedback": "...",
+  "nextSteps": ["..."]
+}`,
   });
 
-  return object;
+  return parseJSON<InterviewEval>(text);
 }
 
 // ─── AI Career Coach ──────────────────────────────────────────────────────────
@@ -189,25 +189,20 @@ export async function getCoachResponse(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   userContext?: { jobTitle?: string; skills?: string[] }
 ): Promise<string> {
-  const systemPrompt = `You are HirePilot's AI Career Coach — an expert in resume optimization, interview preparation, salary negotiation, and career growth.
-
-${userContext?.jobTitle ? `The user is targeting: ${userContext.jobTitle} roles.` : ""}
-${userContext?.skills?.length ? `Their skills include: ${userContext.skills.slice(0, 10).join(", ")}.` : ""}
-
-Be concise, actionable, and encouraging. Use bullet points when listing steps. Keep responses under 300 words unless the user asks for detail.`;
-
   const { text } = await generateText({
     model: QUICK_MODEL,
-    system: systemPrompt,
+    system: `You are HirePilot's AI Career Coach — expert in resume optimization, interview prep, salary negotiation, and career growth.
+${userContext?.skills?.length ? `User skills: ${userContext.skills.slice(0, 10).join(", ")}` : ""}
+Be concise, actionable, and encouraging. Keep responses under 300 words.`,
     messages,
     temperature: 0.6,
-    maxTokens: 600,
+    maxOutputTokens: 600,
   });
 
   return text;
 }
 
-// ─── Communication Analysis (local, no AI needed) ────────────────────────────
+// ─── Communication Analysis ───────────────────────────────────────────────────
 
 export function analyzeTranscriptLocally(transcript: string): {
   fillerWordCount: number;
@@ -216,17 +211,11 @@ export function analyzeTranscriptLocally(transcript: string): {
   estimatedDurationSec: number;
   speakingPaceWpm: number;
 } {
-  const FILLER_WORDS = [
-    "um", "uh", "like", "you know", "basically", "literally",
-    "actually", "honestly", "right", "so", "well", "kind of", "sort of",
-  ];
-
+  const FILLER_WORDS = ["um", "uh", "like", "you know", "basically", "literally", "actually", "honestly", "right", "so", "well"];
   const lower = transcript.toLowerCase();
   const wordCount = transcript.split(/\s+/).filter(Boolean).length;
   const estimatedDurationSec = Math.round((wordCount / 130) * 60);
-  const speakingPaceWpm = estimatedDurationSec > 0
-    ? Math.round((wordCount / estimatedDurationSec) * 60)
-    : 0;
+  const speakingPaceWpm = estimatedDurationSec > 0 ? Math.round((wordCount / estimatedDurationSec) * 60) : 0;
 
   const fillerWords: Record<string, number> = {};
   let fillerWordCount = 0;

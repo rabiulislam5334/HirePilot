@@ -23,8 +23,13 @@ export async function startInterview(params: {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
 
-  const session = await createInterviewSession({ clerkUserId: userId, ...params });
-  return { success: true as const, sessionId: session.id };
+  try {
+    const session = await createInterviewSession({ clerkUserId: userId, ...params });
+    return { success: true as const, sessionId: session.id };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to start interview";
+    return { success: false as const, error: message };
+  }
 }
 
 export async function fetchNextQuestion(params: {
@@ -41,8 +46,9 @@ export async function fetchNextQuestion(params: {
       lastAnswer: params.lastAnswer,
     });
     return { success: true as const, question };
-  } catch (err: any) {
-    return { success: false as const, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to get question";
+    return { success: false as const, error: message };
   }
 }
 
@@ -55,14 +61,18 @@ export async function submitAnswer(params: {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
 
-  const result = await saveAnswer({ clerkUserId: userId, ...params });
-  return { success: true as const, ...result };
+  try {
+    const result = await saveAnswer({ clerkUserId: userId, ...params });
+    return { success: true as const, ...result };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to save answer";
+    return { success: false as const, error: message };
+  }
 }
 
 export async function finishInterview(sessionId: string) {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
-
   return completeInterview(sessionId, userId);
 }
 

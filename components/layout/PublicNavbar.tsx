@@ -88,10 +88,9 @@ export default function PublicNavbar() {
           ))}
         </div>
 
-        {/* Right Buttons — signed in হলে Dashboard + Avatar, না হলে Login/Signup */}
+        {/* Right Buttons */}
         <div className="flex items-center gap-3">
           {!isLoaded ? (
-            // Skeleton loader — flicker এড়াতে
             <div className="w-32 h-10 bg-slate-100 rounded-xl animate-pulse" />
           ) : isSignedIn ? (
             <>
@@ -101,7 +100,8 @@ export default function PublicNavbar() {
               >
                 Dashboard
               </button>
-              <UserButton afterSignOutUrl="/" />
+              {/* ফিক্স: afterSignOutUrl সরিয়ে ফেলা হয়েছে */}
+              <UserButton />
             </>
           ) : (
             <>

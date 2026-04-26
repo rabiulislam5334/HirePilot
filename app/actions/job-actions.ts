@@ -19,7 +19,6 @@ export async function analyzeJobMatch(params: {
 }) {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
-
   return matchResumeToJob({ clerkUserId: userId, ...params });
 }
 
@@ -53,8 +52,9 @@ export async function addJobAndApply(params: {
 
     revalidatePath("/dashboard/tracker");
     return { success: true as const, applicationId: application.id };
-  } catch (err: any) {
-    return { success: false as const, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to add job";
+    return { success: false as const, error: message };
   }
 }
 
@@ -76,7 +76,8 @@ export async function moveApplicationStatus(
     await updateApplicationStatus(applicationId, userId, status, data);
     revalidatePath("/dashboard/tracker");
     return { success: true as const };
-  } catch (err: any) {
-    return { success: false as const, error: err.message };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Status update failed";
+    return { success: false as const, error: message };
   }
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma"; // ✅ default import
 import { getCoachResponse } from "@/lib/services/aiService";
 
 export async function sendCoachMessage(message: string) {
@@ -9,12 +9,10 @@ export async function sendCoachMessage(message: string) {
   if (!userId) return { success: false as const, error: "Unauthorized" };
 
   try {
-    // Save user message
     await prisma.coachChat.create({
       data: { userId, role: "user", content: message },
     });
 
-    // Fetch last 10 messages for context
     const history = await prisma.coachChat.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
@@ -22,11 +20,10 @@ export async function sendCoachMessage(message: string) {
       select: { role: true, content: true },
     });
 
-    // Get user skills for context
     const latestResume = await prisma.resume.findFirst({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      select: { skills: true, feedback: true },
+      select: { skills: true },
     });
 
     const response = await getCoachResponse(
@@ -34,15 +31,15 @@ export async function sendCoachMessage(message: string) {
       { skills: latestResume?.skills }
     );
 
-    // Save assistant reply
     await prisma.coachChat.create({
       data: { userId, role: "assistant", content: response },
     });
 
     return { success: true as const, response };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Coach unavailable";
     console.error("[coachAction]", err);
-    return { success: false as const, error: err.message ?? "Coach unavailable" };
+    return { success: false as const, error: message };
   }
 }
 
