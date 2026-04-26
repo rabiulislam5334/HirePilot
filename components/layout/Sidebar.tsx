@@ -20,7 +20,7 @@ const navItems = [
   { group: "Main Menu", items: [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "My Resumes", href: "/dashboard/resumes", icon: FileText },
-    { name: "Mock Interviews", href: "/dashboard/interviews", icon: Mic },
+    { name: "Mock Interviews", href: "/dashboard/mock-interviews", icon: Mic },
     { name: "AI Coach", href: "/dashboard/coach", icon: Bot },
   ]},
   { group: "Career Tracking", items: [

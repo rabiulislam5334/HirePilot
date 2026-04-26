@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import prisma from "@/lib/prisma";
 import {
   createInterviewSession,
   getNextQuestion,
@@ -74,6 +75,17 @@ export async function finishInterview(sessionId: string) {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
   return completeInterview(sessionId, userId);
+}
+
+export async function getInterviewResult(sessionId: string) {
+  const { userId } = await auth();
+  if (!userId) return null;
+
+  const session = await prisma.interviewSession.findFirst({
+    where: { id: sessionId, userId },
+  });
+
+  return session;
 }
 
 export async function fetchInterviewHistory() {
