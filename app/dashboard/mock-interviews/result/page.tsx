@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Trophy, TrendingUp, AlertTriangle, CheckCircle2,
-  ArrowRight, RotateCcw, Star, Mic2, Clock,
-  Brain, Zap, Heart, Target, MessageSquare,
-  ChevronDown, ChevronUp, Home
+  TrendingUp, RotateCcw, Star, Mic2, Clock,
+  Brain, Target, MessageSquare,
+  ChevronDown, ChevronUp, Home, ArrowRight, Trophy
 } from 'lucide-react';
-import { fetchInterviewHistory } from '@/app/actions/interview-actions';
-import prisma from '@/lib/prisma';
-
-// We'll fetch session data via a server action
 import { getInterviewResult } from '@/app/actions/interview-actions';
 
 type SessionResult = {
@@ -93,7 +88,7 @@ function RadarChart({ scores }: { scores: Record<string, number> }) {
   );
 }
 
-export default function InterviewResultPage() {
+function InterviewResultContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('id');
@@ -312,5 +307,20 @@ export default function InterviewResultPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InterviewResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin mx-auto" />
+          <p className="text-slate-600 font-medium">Loading results...</p>
+        </div>
+      </div>
+    }>
+      <InterviewResultContent />
+    </Suspense>
   );
 }

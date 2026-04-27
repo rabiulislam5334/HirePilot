@@ -84,22 +84,27 @@ export async function deleteResume(id: string, clerkUserId: string) {
   return prisma.resume.delete({ where: { id } });
 }
 
+type ResumeStatRow = {
+  atsScore: number | null;
+  createdAt: Date;
+};
+
 export async function getResumeDashboardStats(clerkUserId: string) {
-  const resumes = await prisma.resume.findMany({
+  const resumes: ResumeStatRow[] = await prisma.resume.findMany({
     where: { userId: clerkUserId },
     select: { atsScore: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
 
-  const analyzed = resumes.filter((r) => r.atsScore !== null);
+  const analyzed = resumes.filter((r: ResumeStatRow) => r.atsScore !== null);
   const avgScore =
     analyzed.length > 0
       ? Math.round(
-          analyzed.reduce((sum, r) => sum + (r.atsScore ?? 0), 0) / analyzed.length
+          analyzed.reduce((sum: number, r: ResumeStatRow) => sum + (r.atsScore ?? 0), 0) / analyzed.length
         )
       : 0;
   const bestScore =
-    analyzed.length > 0 ? Math.max(...analyzed.map((r) => r.atsScore ?? 0)) : 0;
+    analyzed.length > 0 ? Math.max(...analyzed.map((r: ResumeStatRow) => r.atsScore ?? 0)) : 0;
 
   return { total: resumes.length, analyzed: analyzed.length, avgScore, bestScore };
 }

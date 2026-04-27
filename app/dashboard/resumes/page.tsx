@@ -74,8 +74,8 @@ export default function ResumesPage() {
   const handleAnalyze = async (resumeId: string) => {
     setAnalyzingId(resumeId);
     const result = await analyzeResumeWithAI(resumeId);
-    if (result.success && result.data) {
-      setAnalysisResults(prev => ({ ...prev, [resumeId]: result.data as ResumeAnalysis }));
+if (result.success && 'data' in result && result.data) {
+  setAnalysisResults(prev => ({ ...prev, [resumeId]: result.data as ResumeAnalysis }));
       setExpandedId(resumeId);
       await loadResumes();
       toast.success('AI analysis complete!');

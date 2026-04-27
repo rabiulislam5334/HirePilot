@@ -166,8 +166,6 @@ export async function completeInterview(
 
 const GLOBAL_KEY = "hirepilot:leaderboard:global";
 
-// ❌ আগে module level এ call হচ্ছিল — runtime error দিত
-// ✅ এখন function call এর ভেতরে compute করা হচ্ছে
 function getWeekKey(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -183,11 +181,8 @@ export async function updateLeaderboard(
   type: "interview" | "resume"
 ) {
   const points = type === "interview" ? score : Math.floor(score / 2);
-  const weeklyKey = getWeekKey(); // ✅ runtime এ call হচ্ছে
+  const weeklyKey = getWeekKey();
 
-  // ioredis zadd syntax: zadd(key, score, member)
-  // ❌ আগে: redis.zadd(key, "XX", "GT", points, member) — ioredis এ কাজ করে না
-  // ✅ এখন: আলাদাভাবে handle করা হচ্ছে
   const currentGlobal = await redis.zscore(GLOBAL_KEY, clerkUserId);
   if (currentGlobal === null || points > parseFloat(currentGlobal)) {
     await redis.zadd(GLOBAL_KEY, points, clerkUserId);
@@ -234,8 +229,10 @@ export async function getGlobalLeaderboard(limit = 20) {
     select: { clerkId: true, name: true, image: true, leaderboard: true },
   });
 
+  type AccountRow = (typeof accounts)[number];
+
   return results.map((r) => {
-    const account = accounts.find((a) => a.clerkId === r.userId);
+    const account = accounts.find((a: AccountRow) => a.clerkId === r.userId);
     return {
       ...r,
       name: account?.name ?? "Anonymous",
@@ -254,8 +251,17 @@ export async function getUserRank(clerkUserId: string): Promise<number | null> {
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 
+type SessionRow = {
+  score: number | null;
+  confidenceScore: number | null;
+  clarityScore: number | null;
+  fillerWordCount: number | null;
+  completedAt: Date | null;
+  jobTitle: string | null;
+};
+
 export async function getInterviewAnalytics(clerkUserId: string) {
-  const sessions = await prisma.interviewSession.findMany({
+  const sessions: SessionRow[] = await prisma.interviewSession.findMany({
     where: { userId: clerkUserId, status: "completed" },
     orderBy: { completedAt: "asc" },
     select: {
@@ -273,13 +279,13 @@ export async function getInterviewAnalytics(clerkUserId: string) {
   }
 
   const avgScore = Math.round(
-    sessions.reduce((s, r) => s + (r.score ?? 0), 0) / sessions.length
+    sessions.reduce((s: number, r: SessionRow) => s + (r.score ?? 0), 0) / sessions.length
   );
 
-  const recent = sessions.slice(-3).map((s) => s.score ?? 0);
-  const older = sessions.slice(-6, -3).map((s) => s.score ?? 0);
-  const recentAvg = recent.reduce((a, b) => a + b, 0) / (recent.length || 1);
-  const olderAvg = older.reduce((a, b) => a + b, 0) / (older.length || 1);
+  const recent = sessions.slice(-3).map((s: SessionRow) => s.score ?? 0);
+  const older = sessions.slice(-6, -3).map((s: SessionRow) => s.score ?? 0);
+  const recentAvg = recent.reduce((a: number, b: number) => a + b, 0) / (recent.length || 1);
+  const olderAvg = older.reduce((a: number, b: number) => a + b, 0) / (older.length || 1);
 
   const trend =
     older.length === 0
