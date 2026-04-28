@@ -1,4 +1,3 @@
-
 // lib/services/interviewService.ts
 import prisma from "@/lib/prisma";
 import { redis } from "@/lib/redis";
@@ -223,16 +222,12 @@ export async function getUserRank(clerkUserId: string): Promise<number | null> {
 }
 
 export async function getInterviewAnalytics(clerkUserId: string) {
-  const sessions: SessionRow[] = await prisma.interviewSession.findMany({
-    where: { userId: clerkUserId, status: "completed" },
+  const sessions = await prisma.interviewSession.findMany({
+    where:   { userId: clerkUserId, status: "completed" },
     orderBy: { completedAt: "asc" },
-    select: {
-      score: true,
-      confidenceScore: true,
-      clarityScore: true,
-      fillerWordCount: true,
-      completedAt: true,
-      jobTitle: true,
+    select:  {
+      score: true, confidenceScore: true, clarityScore: true,
+      fillerWordCount: true, completedAt: true, jobTitle: true,
     },
   });
 
@@ -240,23 +235,17 @@ export async function getInterviewAnalytics(clerkUserId: string) {
     return { sessions: [], avgScore: 0, trend: "no data", totalSessions: 0 };
   }
 
-  const avgScore = Math.round(
-    sessions.reduce((s: number, r: SessionRow) => s + (r.score ?? 0), 0) / sessions.length
-  );
-
-  const recent = sessions.slice(-3).map((s: SessionRow) => s.score ?? 0);
-  const older = sessions.slice(-6, -3).map((s: SessionRow) => s.score ?? 0);
-  const recentAvg = recent.reduce((a: number, b: number) => a + b, 0) / (recent.length || 1);
-  const olderAvg = older.reduce((a: number, b: number) => a + b, 0) / (older.length || 1);
+  const avgScore  = Math.round(sessions.reduce((s, r) => s + (r.score ?? 0), 0) / sessions.length);
+  const recent    = sessions.slice(-3).map(s => s.score ?? 0);
+  const older     = sessions.slice(-6, -3).map(s => s.score ?? 0);
+  const recentAvg = recent.reduce((a, b) => a + b, 0) / (recent.length || 1);
+  const olderAvg  = older.reduce((a, b)  => a + b, 0) / (older.length  || 1);
 
   const trend =
-    older.length === 0
-      ? "not enough data"
-      : recentAvg > olderAvg + 5
-      ? "improving"
-      : recentAvg < olderAvg - 5
-      ? "declining"
-      : "stable";
+    older.length === 0          ? "not enough data"
+    : recentAvg > olderAvg + 5 ? "improving"
+    : recentAvg < olderAvg - 5 ? "declining"
+    : "stable";
 
   return { sessions, avgScore, trend, totalSessions: sessions.length };
 }

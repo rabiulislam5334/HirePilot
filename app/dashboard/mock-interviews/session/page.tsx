@@ -1,13 +1,13 @@
-
 'use client';
+
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Send, Mic, MicOff, ChevronRight,
-  AlertCircle, Lightbulb, X, CheckCircle2,
-  Brain, Zap, BarChart3
+  Send, Mic, MicOff, ChevronRight, AlertCircle,
+  Lightbulb, X, CheckCircle2, Brain, Zap, BarChart3, Loader2
 } from 'lucide-react';
 import { fetchNextQuestion, submitAnswer, finishInterview } from '@/app/actions/interview-actions';
+import { useInterviewSessionSocket, type SessionEvaluated } from '@/hooks/useSocket';
 import { toast } from 'sonner';
 
 type Question = { question: string; type: string; hint: string };
@@ -28,12 +28,10 @@ const STAR_TIPS = [
   '✅ Result — Quantify the outcome if possible',
 ];
 
-// ─── Main content (uses useSearchParams, must be inside Suspense) ─────────────
-
 function InterviewSessionContent() {
-  const router = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get('id');
+  const sessionId    = searchParams.get('id');
 
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [answer, setAnswer]         = useState('');
@@ -45,11 +43,23 @@ function InterviewSessionContent() {
   const [showSTAR, setShowSTAR]     = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [wordCount, setWordCount]   = useState(0);
-  const [phase, setPhase]           = useState<'loading' | 'answering'>('loading');
+  const [phase, setPhase]           = useState<'loading' | 'answering' | 'evaluating'>('loading');
 
-  const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
-  const textareaRef   = useRef<HTMLTextAreaElement>(null);
+  const textareaRef    = useRef<HTMLTextAreaElement>(null);
+
+  // ─── Socket — wait for BullMQ evaluation result ─────────────────────────────
+
+  const handleEvaluated = useCallback((data: SessionEvaluated) => {
+    console.log("[socket] session_evaluated:", data);
+    toast.success(`Score: ${data.score}/100 — Redirecting to results...`);
+    router.push(`/dashboard/mock-interviews/result?id=${data.sessionId}`);
+  }, [router]);
+
+  useInterviewSessionSocket(sessionId, handleEvaluated);
+
+  // ─── Timer ───────────────────────────────────────────────────────────────────
 
   function startTimer() {
     setTimeLeft(QUESTION_TIME);
@@ -82,10 +92,8 @@ function InterviewSessionContent() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [loadFirstQuestion]);
 
-  function formatTime(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  function formatTime(s: number) {
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   }
 
   const handleAnswerChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -93,17 +101,23 @@ function InterviewSessionContent() {
     setWordCount(e.target.value.split(/\s+/).filter(Boolean).length);
   };
 
+  // ─── Finish — queues BullMQ job, socket will redirect when done ──────────────
+
   async function handleFinish() {
     if (!sessionId) return;
     setIsFinishing(true);
-    toast.loading('AI is evaluating your performance...', { id: 'eval' });
+    setPhase('evaluating');
+
     const result = await finishInterview(sessionId);
-    toast.dismiss('eval');
     if (result.success) {
-      router.push(`/dashboard/mock-interviews/result?id=${sessionId}`);
+      toast.loading('AI is evaluating your answers... (this may take 30–60 seconds)', {
+        id: 'eval', duration: 90000,
+      });
+      // Socket will fire "session_evaluated" when BullMQ worker finishes
     } else {
-      toast.error('Evaluation failed');
+      toast.error(result.error ?? 'Evaluation failed');
       setIsFinishing(false);
+      setPhase('answering');
     }
   }
 
@@ -117,9 +131,9 @@ function InterviewSessionContent() {
 
     await submitAnswer({
       sessionId,
-      question: currentQuestion.question,
+      question:     currentQuestion.question,
       questionType: currentQuestion.type,
-      answer: answer.trim(),
+      answer:       answer.trim(),
     });
 
     if (questionNumber >= MAX_QUESTIONS) {
@@ -133,10 +147,8 @@ function InterviewSessionContent() {
     if (result.success && result.question) {
       setCurrentQuestion(result.question as Question);
       setQuestionNumber(prev => prev + 1);
-      setAnswer('');
-      setWordCount(0);
-      setShowHint(false);
-      setShowSTAR(false);
+      setAnswer(''); setWordCount(0);
+      setShowHint(false); setShowSTAR(false);
       setPhase('answering');
       startTimer();
     } else {
@@ -145,20 +157,15 @@ function InterviewSessionContent() {
     setIsSubmitting(false);
   }
 
+  // ─── Voice ───────────────────────────────────────────────────────────────────
+
   function toggleVoice() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const win = window as any;
     const SpeechAPI = win.SpeechRecognition ?? win.webkitSpeechRecognition;
+    if (!SpeechAPI) { toast.error('Voice not supported in this browser'); return; }
 
-    if (!SpeechAPI) {
-      toast.error('Voice input not supported in this browser');
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recognition = new SpeechAPI() as any;
@@ -182,6 +189,31 @@ function InterviewSessionContent() {
   const timerColor   = timeLeft > 60 ? 'stroke-emerald-500' : timeLeft > 30 ? 'stroke-amber-500' : 'stroke-red-500';
   const typeConfig   = currentQuestion ? (TYPE_CONFIG[currentQuestion.type] ?? TYPE_CONFIG.behavioral) : TYPE_CONFIG.behavioral;
   const TypeIcon     = typeConfig.icon;
+
+  // ─── Evaluating screen ───────────────────────────────────────────────────────
+
+  if (phase === 'evaluating') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center space-y-6 max-w-md">
+          <div className="w-20 h-20 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin mx-auto" />
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">AI is evaluating your answers</h2>
+            <p className="text-slate-500">Our AI is analyzing your responses, communication style, and STAR method usage.</p>
+            <p className="text-sm text-slate-400 mt-2">This usually takes 30–60 seconds...</p>
+          </div>
+          <div className="flex justify-center gap-2">
+            {['Technical depth', 'Communication', 'Confidence', 'STAR method'].map((label, i) => (
+              <div key={label} className="px-3 py-1 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-500 animate-pulse"
+                style={{ animationDelay: `${i * 0.3}s` }}>
+                {label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === 'loading' && questionNumber === 0) {
     return (
@@ -211,28 +243,24 @@ function InterviewSessionContent() {
               ))}
             </div>
           </div>
-
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <div className="relative w-10 h-10">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                   <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15.9" fill="none"
-                    className={timerColor} strokeWidth="3"
-                    strokeDasharray={`${timerPercent} 100`} strokeLinecap="round" />
+                  <circle cx="18" cy="18" r="15.9" fill="none" className={timerColor}
+                    strokeWidth="3" strokeDasharray={`${timerPercent} 100`} strokeLinecap="round" />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-xs font-black">
                   {timeLeft <= 60 ? formatTime(timeLeft) : `${Math.ceil(timeLeft / 60)}m`}
                 </span>
               </div>
               <span className={`text-sm font-bold ${timeLeft <= 30 ? 'text-red-500' : 'text-slate-600'}`}>
-                {timeLeft <= 30 ? 'Time running out!' : formatTime(timeLeft)}
+                {timeLeft <= 30 ? 'Hurry up!' : formatTime(timeLeft)}
               </span>
             </div>
-            <button
-              onClick={() => { if (confirm('End interview early?')) handleFinish(); }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 border border-slate-200 rounded-lg transition-all"
-            >
+            <button onClick={() => { if (confirm('End interview early?')) handleFinish(); }}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 border border-slate-200 rounded-lg transition-all">
               <X className="w-3 h-3" /> End Early
             </button>
           </div>
@@ -242,32 +270,25 @@ function InterviewSessionContent() {
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
         {phase === 'loading' ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center">
-            <div className="w-12 h-12 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4" />
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-emerald-600" />
             <p className="text-slate-600 font-medium">Generating next question...</p>
           </div>
         ) : (
           <>
-            {/* Question Card */}
             <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-4">
               <div className="flex items-center gap-3">
                 <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${typeConfig.color}`}>
-                  <TypeIcon className="w-3.5 h-3.5" />
-                  {typeConfig.label}
+                  <TypeIcon className="w-3.5 h-3.5" /> {typeConfig.label}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${questionNumber === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                   {questionNumber === 1 ? 'Opening' : 'Follow-up'}
                 </span>
               </div>
-
-              <p className="text-xl font-bold text-slate-900 leading-relaxed">
-                {currentQuestion?.question}
-              </p>
-
+              <p className="text-xl font-bold text-slate-900 leading-relaxed">{currentQuestion?.question}</p>
               <div className="flex gap-2">
                 <button onClick={() => setShowHint(!showHint)}
                   className="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-700">
-                  <Lightbulb className="w-3.5 h-3.5" />
-                  {showHint ? 'Hide hint' : 'Show hint'}
+                  <Lightbulb className="w-3.5 h-3.5" /> {showHint ? 'Hide hint' : 'Show hint'}
                 </button>
                 {currentQuestion?.type === 'behavioral' && (
                   <button onClick={() => setShowSTAR(!showSTAR)}
@@ -276,12 +297,7 @@ function InterviewSessionContent() {
                   </button>
                 )}
               </div>
-
-              {showHint && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-                  💡 {currentQuestion?.hint}
-                </div>
-              )}
+              {showHint && <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">💡 {currentQuestion?.hint}</div>}
               {showSTAR && (
                 <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-1">
                   {STAR_TIPS.map((tip, i) => <p key={i} className="text-sm text-violet-800">{tip}</p>)}
@@ -289,7 +305,6 @@ function InterviewSessionContent() {
               )}
             </div>
 
-            {/* Answer Box */}
             <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-600">Your Answer</span>
@@ -303,12 +318,10 @@ function InterviewSessionContent() {
                   </button>
                 </div>
               </div>
-
               <textarea ref={textareaRef} value={answer} onChange={handleAnswerChange}
                 placeholder="Type your answer here... Be specific, use examples, and quantify results where possible."
                 className="w-full p-6 text-sm leading-relaxed text-slate-800 placeholder:text-slate-300 focus:outline-none resize-none min-h-[200px]"
                 rows={8} />
-
               <div className="px-6 pb-2">
                 <div className="w-full bg-slate-100 rounded-full h-1">
                   <div className={`h-1 rounded-full transition-all ${wordCount >= 150 ? 'bg-emerald-500' : wordCount >= 50 ? 'bg-amber-500' : 'bg-slate-300'}`}
@@ -316,7 +329,6 @@ function InterviewSessionContent() {
                 </div>
                 <p className="text-xs text-slate-400 mt-1">Aim for 150–200 words for a complete answer</p>
               </div>
-
               <div className="p-4 border-t border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                   <AlertCircle className="w-3.5 h-3.5" /> Answer saved when you submit
@@ -326,7 +338,7 @@ function InterviewSessionContent() {
                     <button onClick={handleSubmitAnswer}
                       disabled={isSubmitting || !answer.trim() || wordCount < 10}
                       className="flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-emerald-600 transition-all disabled:opacity-40">
-                      {isSubmitting ? <span className="animate-spin">⚡</span>
+                      {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" />
                         : <><Send className="w-4 h-4" /> Next Question <ChevronRight className="w-4 h-4" /></>}
                     </button>
                   ) : (
@@ -337,16 +349,15 @@ function InterviewSessionContent() {
                       }}
                       disabled={isFinishing || !answer.trim()}
                       className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-40">
-                      {isFinishing ? <span className="animate-spin">⚡</span>
+                      {isFinishing ? <Loader2 className="w-4 h-4 animate-spin" />
                         : <><CheckCircle2 className="w-4 h-4" /> Finish & Get Score</>}
                     </button>
                   )}
                 </div>
               </div>
             </div>
-
             <div className="grid grid-cols-3 gap-3 text-center">
-              {['Be specific with examples', 'Quantify your results', 'Stay concise & structured'].map((tip) => (
+              {['Be specific with examples', 'Quantify your results', 'Stay concise & structured'].map(tip => (
                 <div key={tip} className="bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-500 font-medium">{tip}</div>
               ))}
             </div>
@@ -357,16 +368,11 @@ function InterviewSessionContent() {
   );
 }
 
-// ─── Suspense wrapper (required for useSearchParams in Next.js 16) ─────────────
-
 export default function InterviewSessionPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin mx-auto" />
-          <p className="text-slate-600 font-medium">Loading interview...</p>
-        </div>
+        <div className="w-16 h-16 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
       </div>
     }>
       <InterviewSessionContent />

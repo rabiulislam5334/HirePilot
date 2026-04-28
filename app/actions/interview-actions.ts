@@ -28,7 +28,7 @@ export async function startInterview(params: {
     const session = await createInterviewSession({ clerkUserId: userId, ...params });
     return { success: true as const, sessionId: session.id };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to start interview";
+    const message = err instanceof Error ? err.message : "Failed to start";
     return { success: false as const, error: message };
   }
 }
@@ -42,9 +42,9 @@ export async function fetchNextQuestion(params: {
 
   try {
     const question = await getNextQuestion({
-      sessionId: params.sessionId,
+      sessionId:  params.sessionId,
       clerkUserId: userId,
-      lastAnswer: params.lastAnswer,
+      lastAnswer:  params.lastAnswer,
     });
     return { success: true as const, question };
   } catch (err: unknown) {
@@ -71,21 +71,30 @@ export async function submitAnswer(params: {
   }
 }
 
+// ─── finishInterview — BullMQ queue এ দেয়, socket দিয়ে result পাবে ──────────
+
 export async function finishInterview(sessionId: string) {
   const { userId } = await auth();
   if (!userId) return { success: false as const, error: "Unauthorized" };
-  return completeInterview(sessionId, userId);
+
+  // Queue the evaluation — background এ চলবে
+  const result = await completeInterview(sessionId, userId);
+
+  if (result.success) {
+    // Client socket দিয়ে "session_evaluated" event এর জন্য wait করবে
+    return { success: true as const, queued: true, jobId: result.jobId };
+  }
+
+  return { success: false as const, error: result.error };
 }
 
 export async function getInterviewResult(sessionId: string) {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const session = await prisma.interviewSession.findFirst({
+  return prisma.interviewSession.findFirst({
     where: { id: sessionId, userId },
   });
-
-  return session;
 }
 
 export async function fetchInterviewHistory() {
