@@ -1,11 +1,13 @@
+
+// lib/services/interviewService.ts
 import prisma from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import {
   generateInterviewQuestions,
-  evaluateInterview,
   analyzeTranscriptLocally,
   type InterviewEval,
 } from "./aiService";
+import { interviewEvalQueue, leaderboardQueue } from "@/lib/queues";
 
 export type InterviewCategory = "behavioral" | "technical" | "mixed";
 export type InterviewDifficulty = "easy" | "medium" | "hard";
@@ -28,13 +30,13 @@ export async function createInterviewSession(params: {
 }) {
   return prisma.interviewSession.create({
     data: {
-      userId: params.clerkUserId,
-      jobTitle: params.jobTitle,
-      company: params.company,
-      category: params.category,
+      userId:     params.clerkUserId,
+      jobTitle:   params.jobTitle,
+      company:    params.company,
+      category:   params.category,
       difficulty: params.difficulty,
-      questions: [],
-      status: "ongoing",
+      questions:  [],
+      status:     "ongoing",
     },
   });
 }
@@ -47,18 +49,12 @@ export async function getInterviewSession(id: string, clerkUserId: string) {
 
 export async function getInterviewHistory(clerkUserId: string) {
   return prisma.interviewSession.findMany({
-    where: { userId: clerkUserId, status: "completed" },
+    where:   { userId: clerkUserId, status: "completed" },
     orderBy: { completedAt: "desc" },
     select: {
-      id: true,
-      jobTitle: true,
-      company: true,
-      score: true,
-      category: true,
-      difficulty: true,
-      completedAt: true,
-      fillerWordCount: true,
-      confidenceScore: true,
+      id: true, jobTitle: true, company: true, score: true,
+      category: true, difficulty: true, completedAt: true,
+      fillerWordCount: true, confidenceScore: true,
     },
   });
 }
@@ -74,15 +70,15 @@ export async function getNextQuestion(params: {
   if (!session) throw new Error("Session not found");
 
   const transcript = (session.transcript as TranscriptEntry[] | null) ?? [];
-  const lastEntry = transcript[transcript.length - 1];
+  const lastEntry  = transcript[transcript.length - 1];
 
   return generateInterviewQuestions({
-    jobTitle: session.jobTitle ?? "Software Engineer",
-    company: session.company ?? undefined,
-    category: session.category as InterviewCategory,
-    difficulty: session.difficulty as InterviewDifficulty,
+    jobTitle:         session.jobTitle ?? "Software Engineer",
+    company:          session.company  ?? undefined,
+    category:         session.category as InterviewCategory,
+    difficulty:       session.difficulty as InterviewDifficulty,
     previousQuestion: lastEntry?.question,
-    previousAnswer: params.lastAnswer,
+    previousAnswer:   params.lastAnswer,
   });
 }
 
@@ -100,64 +96,56 @@ export async function saveAnswer(params: {
   const updated: TranscriptEntry[] = [
     ...existing,
     {
-      question: params.question,
+      question:     params.question,
       questionType: params.questionType,
-      answer: params.answer,
-      answeredAt: new Date().toISOString(),
+      answer:       params.answer,
+      answeredAt:   new Date().toISOString(),
     },
   ];
 
   await prisma.interviewSession.update({
     where: { id: params.sessionId },
-    data: { transcript: updated as object[] },
+    data:  { transcript: updated as object[] },
   });
 
   return { questionNumber: updated.length };
 }
 
-// ─── Complete & Evaluate ──────────────────────────────────────────────────────
+// ─── Complete Interview — BullMQ queue এ job দাও ─────────────────────────────
 
 export async function completeInterview(
   sessionId: string,
   clerkUserId: string
-): Promise<{ success: true; eval: InterviewEval } | { success: false; error: string }> {
+): Promise<{ success: true; jobId: string } | { success: false; error: string }> {
   try {
     const session = await getInterviewSession(sessionId, clerkUserId);
     if (!session) return { success: false, error: "Session not found" };
 
     const transcript = (session.transcript as TranscriptEntry[] | null) ?? [];
-    if (transcript.length === 0) {
-      return { success: false, error: "No answers recorded" };
-    }
+    if (transcript.length === 0) return { success: false, error: "No answers recorded" };
 
-    const allAnswers = transcript.map((t) => t.answer).join(" ");
-    const commAnalysis = analyzeTranscriptLocally(allAnswers);
-
-    const evaluation = await evaluateInterview(
-      transcript.map((t) => ({ question: t.question, answer: t.answer })),
-      session.jobTitle ?? "the position"
-    );
-
+    // Mark as processing
     await prisma.interviewSession.update({
       where: { id: sessionId },
-      data: {
-        score: evaluation.overallScore,
-        feedback: evaluation.detailedFeedback,
-        fillerWordCount: commAnalysis.fillerWordCount,
-        speakingPaceWpm: commAnalysis.speakingPaceWpm,
-        confidenceScore: evaluation.confidenceScore,
-        clarityScore: evaluation.communicationScore,
-        status: "completed",
-        completedAt: new Date(),
-      },
+      data:  { status: "processing" },
     });
 
-    await updateLeaderboard(clerkUserId, evaluation.overallScore, "interview");
+    // Add to BullMQ queue — AI evaluation runs in background
+    const job = await interviewEvalQueue.add(
+      "evaluate",
+      {
+        sessionId,
+        clerkUserId,
+        jobTitle: session.jobTitle ?? "Interview",
+      },
+      { priority: 1 }
+    );
 
-    return { success: true, eval: evaluation };
+    console.log(`[interviewService] queued evaluation job: ${job.id}`);
+    return { success: true, jobId: job.id! };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Evaluation failed";
-    console.error("[interviewService] complete error:", err);
+    const message = err instanceof Error ? err.message : "Failed to queue evaluation";
+    console.error("[interviewService] completeInterview error:", err);
     return { success: false, error: message };
   }
 }
@@ -167,48 +155,35 @@ export async function completeInterview(
 const GLOBAL_KEY = "hirepilot:leaderboard:global";
 
 function getWeekKey(): string {
-  const now = new Date();
+  const now  = new Date();
   const year = now.getFullYear();
-  const week = Math.ceil(
-    ((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + 1) / 7
-  );
+  const week = Math.ceil(((now.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + 1) / 7);
   return `hirepilot:leaderboard:weekly:${year}:w${week}`;
 }
 
 export async function updateLeaderboard(
   clerkUserId: string,
   score: number,
-  type: "interview" | "resume"
-) {
-  const points = type === "interview" ? score : Math.floor(score / 2);
-  const weeklyKey = getWeekKey();
-
-  const currentGlobal = await redis.zscore(GLOBAL_KEY, clerkUserId);
-  if (currentGlobal === null || points > parseFloat(currentGlobal)) {
-    await redis.zadd(GLOBAL_KEY, points, clerkUserId);
-  }
-
-  const currentWeekly = await redis.zscore(weeklyKey, clerkUserId);
-  if (currentWeekly === null || points > parseFloat(currentWeekly)) {
-    await redis.zadd(weeklyKey, points, clerkUserId);
-  }
-  await redis.expire(weeklyKey, 60 * 60 * 24 * 7);
-
-  await prisma.leaderboard.upsert({
-    where: { userId: clerkUserId },
-    update: {
-      totalScore: { increment: points },
-      xp: { increment: points * 10 },
-      weeklyScore: { increment: points },
-    },
-    create: {
-      userId: clerkUserId,
-      totalScore: points,
-      xp: points * 10,
-      weeklyScore: points,
-      level: 1,
-    },
+  type: "interview" | "resume",
+  jobTitle?: string
+): Promise<number | null> {
+  // Queue the leaderboard update
+  const account = await prisma.account.findFirst({
+    where:  { clerkId: clerkUserId },
+    select: { name: true },
   });
+
+  await leaderboardQueue.add("update", {
+    clerkUserId,
+    score,
+    type,
+    jobTitle,
+    name: account?.name ?? undefined,
+  });
+
+  // Return current rank immediately (before queue processes)
+  const rank = await redis.zrevrank(GLOBAL_KEY, clerkUserId);
+  return rank !== null ? rank + 1 : null;
 }
 
 export async function getGlobalLeaderboard(limit = 20) {
@@ -218,27 +193,25 @@ export async function getGlobalLeaderboard(limit = 20) {
   for (let i = 0; i < entries.length; i += 2) {
     results.push({
       userId: entries[i],
-      score: parseFloat(entries[i + 1]),
-      rank: Math.floor(i / 2) + 1,
+      score:  parseFloat(entries[i + 1]),
+      rank:   Math.floor(i / 2) + 1,
     });
   }
 
-  const userIds = results.map((r) => r.userId);
+  const userIds  = results.map(r => r.userId);
   const accounts = await prisma.account.findMany({
-    where: { clerkId: { in: userIds } },
+    where:  { clerkId: { in: userIds } },
     select: { clerkId: true, name: true, image: true, leaderboard: true },
   });
 
-  type AccountRow = (typeof accounts)[number];
-
-  return results.map((r) => {
-    const account = accounts.find((a: AccountRow) => a.clerkId === r.userId);
+  return results.map(r => {
+    const account = accounts.find(a => a.clerkId === r.userId);
     return {
       ...r,
-      name: account?.name ?? "Anonymous",
-      image: account?.image ?? null,
-      xp: account?.leaderboard?.xp ?? 0,
-      level: account?.leaderboard?.level ?? 1,
+      name:   account?.name  ?? "Anonymous",
+      image:  account?.image ?? null,
+      xp:     account?.leaderboard?.xp     ?? 0,
+      level:  account?.leaderboard?.level  ?? 1,
       badges: account?.leaderboard?.badges ?? [],
     };
   });
@@ -248,17 +221,6 @@ export async function getUserRank(clerkUserId: string): Promise<number | null> {
   const rank = await redis.zrevrank(GLOBAL_KEY, clerkUserId);
   return rank !== null ? rank + 1 : null;
 }
-
-// ─── Analytics ───────────────────────────────────────────────────────────────
-
-type SessionRow = {
-  score: number | null;
-  confidenceScore: number | null;
-  clarityScore: number | null;
-  fillerWordCount: number | null;
-  completedAt: Date | null;
-  jobTitle: string | null;
-};
 
 export async function getInterviewAnalytics(clerkUserId: string) {
   const sessions: SessionRow[] = await prisma.interviewSession.findMany({
