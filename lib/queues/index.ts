@@ -1,19 +1,9 @@
 // lib/queues/index.ts
 // BullMQ Queue definitions — Redis backed job queues
 import { Queue } from "bullmq";
-import { redis } from "@/lib/redis";
-
-// BullMQ needs a separate Redis connection config
-const connection = {
-    host: process.env.REDIS_HOST ?? "localhost",
-    port: parseInt(process.env.REDIS_PORT ?? "6379", 10),
-    password: process.env.REDIS_PASSWORD ?? undefined,
-};
+import { bullmqRedis } from "@/lib/redis";
 
 // ─── Queue: Interview Evaluation ──────────────────────────────────────────────
-// Interview complete হলে AI evaluation এই queue তে যাবে
-// Worker async এ process করবে — user কে wait করতে হবে না
-
 export type InterviewEvalJobData = {
     sessionId: string;
     clerkUserId: string;
@@ -23,19 +13,17 @@ export type InterviewEvalJobData = {
 export const interviewEvalQueue = new Queue<InterviewEvalJobData>(
     "interview-evaluation",
     {
-        connection,
+        connection: bullmqRedis,
         defaultJobOptions: {
-            attempts: 3,                          // ৩ বার retry
+            attempts: 3,
             backoff: { type: "exponential", delay: 2000 },
-            removeOnComplete: { count: 100 },     // শেষ ১০০টা রাখো
+            removeOnComplete: { count: 100 },
             removeOnFail: { count: 50 },
         },
     }
 );
 
 // ─── Queue: Resume AI Analysis ────────────────────────────────────────────────
-// Resume upload হলে background এ AI analysis চলবে
-
 export type ResumeAnalysisJobData = {
     resumeId: string;
     clerkUserId: string;
@@ -44,7 +32,7 @@ export type ResumeAnalysisJobData = {
 export const resumeAnalysisQueue = new Queue<ResumeAnalysisJobData>(
     "resume-analysis",
     {
-        connection,
+        connection: bullmqRedis,
         defaultJobOptions: {
             attempts: 3,
             backoff: { type: "exponential", delay: 3000 },
@@ -55,8 +43,6 @@ export const resumeAnalysisQueue = new Queue<ResumeAnalysisJobData>(
 );
 
 // ─── Queue: Leaderboard Update ────────────────────────────────────────────────
-// Score update হলে leaderboard recalculate করে socket emit করবে
-
 export type LeaderboardUpdateJobData = {
     clerkUserId: string;
     score: number;
@@ -68,7 +54,7 @@ export type LeaderboardUpdateJobData = {
 export const leaderboardQueue = new Queue<LeaderboardUpdateJobData>(
     "leaderboard-update",
     {
-        connection,
+        connection: bullmqRedis,
         defaultJobOptions: {
             attempts: 3,
             backoff: { type: "fixed", delay: 1000 },

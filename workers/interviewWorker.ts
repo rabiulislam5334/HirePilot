@@ -2,19 +2,13 @@
 // BullMQ Workers — background job processing
 import { Worker } from "bullmq";
 import prisma from "@/lib/prisma";
-import { redis } from "@/lib/redis";
+import { redis, bullmqRedis } from "@/lib/redis";
 import { evaluateInterview, analyzeResume, analyzeTranscriptLocally } from "@/lib/services/aiService";
 import type {
   InterviewEvalJobData,
   ResumeAnalysisJobData,
   LeaderboardUpdateJobData,
 } from "@/lib/queues";
-
-const connection = {
-  host: process.env.REDIS_HOST ?? "localhost",
-  port: parseInt(process.env.REDIS_PORT ?? "6379", 10),
-  password: process.env.REDIS_PASSWORD ?? undefined,
-};
 
 const GLOBAL_KEY = "hirepilot:leaderboard:global";
 
@@ -45,17 +39,14 @@ const interviewWorker = new Worker<InterviewEvalJobData>(
     type TranscriptEntry = { question: string; answer: string };
     const transcript = session.transcript as TranscriptEntry[];
 
-    // Communication analysis (fast, local)
     const allAnswers   = transcript.map((t) => t.answer).join(" ");
     const commAnalysis = analyzeTranscriptLocally(allAnswers);
 
-    // AI evaluation (slow — runs in background via BullMQ)
     const evaluation = await evaluateInterview(
       transcript.map((t) => ({ question: t.question, answer: t.answer })),
       jobTitle
     );
 
-    // Save to DB
     await prisma.interviewSession.update({
       where: { id: sessionId },
       data: {
@@ -70,13 +61,11 @@ const interviewWorker = new Worker<InterviewEvalJobData>(
       },
     });
 
-    // Add to leaderboard queue
     const account = await prisma.account.findFirst({
       where: { clerkId: clerkUserId },
       select: { name: true },
     });
 
-    // Notify client via Socket.io — session result ready
     emitSocket("session_evaluated", `session:${sessionId}`, {
       sessionId,
       score:    evaluation.overallScore,
@@ -91,7 +80,7 @@ const interviewWorker = new Worker<InterviewEvalJobData>(
       jobTitle,
     };
   },
-  { connection, concurrency: 3 }
+  { connection: bullmqRedis, concurrency: 3 }
 );
 
 // ─── Worker 2: Resume Analysis ────────────────────────────────────────────────
@@ -120,7 +109,6 @@ const resumeWorker = new Worker<ResumeAnalysisJobData>(
       },
     });
 
-    // Notify client — resume analysis done
     emitSocket("resume_analyzed", `user:${clerkUserId}`, {
       resumeId,
       atsScore: analysis.atsScore,
@@ -130,7 +118,7 @@ const resumeWorker = new Worker<ResumeAnalysisJobData>(
     console.log(`[worker] resume analyzed: atsScore=${analysis.atsScore}`);
     return { atsScore: analysis.atsScore };
   },
-  { connection, concurrency: 2 }
+  { connection: bullmqRedis, concurrency: 2 }
 );
 
 // ─── Worker 3: Leaderboard Update ─────────────────────────────────────────────
@@ -144,7 +132,6 @@ const leaderboardWorker = new Worker<LeaderboardUpdateJobData>(
     const points    = type === "interview" ? score : Math.floor(score / 2);
     const weeklyKey = getWeekKey();
 
-    // Redis update — keep highest score
     const currentGlobal = await redis.zscore(GLOBAL_KEY, clerkUserId);
     if (currentGlobal === null || points > parseFloat(currentGlobal)) {
       await redis.zadd(GLOBAL_KEY, points, clerkUserId);
@@ -155,7 +142,6 @@ const leaderboardWorker = new Worker<LeaderboardUpdateJobData>(
     }
     await redis.expire(weeklyKey, 60 * 60 * 24 * 7);
 
-    // DB update
     await prisma.leaderboard.upsert({
       where:  { userId: clerkUserId },
       update: {
@@ -169,11 +155,9 @@ const leaderboardWorker = new Worker<LeaderboardUpdateJobData>(
       },
     });
 
-    // Get rank
     const rankRaw = await redis.zrevrank(GLOBAL_KEY, clerkUserId);
     const rank    = rankRaw !== null ? rankRaw + 1 : null;
 
-    // Broadcast to all leaderboard viewers via Socket.io
     emitSocket("leaderboard_updated", "leaderboard", {
       userId: clerkUserId,
       name:   name ?? "Anonymous",
@@ -185,7 +169,7 @@ const leaderboardWorker = new Worker<LeaderboardUpdateJobData>(
     console.log(`[worker] leaderboard updated: rank=${rank}`);
     return { rank };
   },
-  { connection, concurrency: 5 }
+  { connection: bullmqRedis, concurrency: 5 }
 );
 
 // ─── Worker event handlers ────────────────────────────────────────────────────

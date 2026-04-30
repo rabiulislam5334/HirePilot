@@ -1,5 +1,6 @@
 // server.ts
 // Next.js custom server — Socket.io + BullMQ worker একসাথে চালায়
+import "dotenv/config";
 import { createServer } from "http";
 import { parse } from "url";
 import next from "next";

@@ -18,18 +18,34 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Prisma Client জেনারেট করা
+# Prisma Client generate
 RUN npx prisma generate
 
-# Next.js বিল্ড (এটি .next/standalone তৈরি করবে)
+# Next.js build (.next/standalone তৈরি হবে)
 RUN npm run build
 
-# Custom server (server.ts) কে জাভাস্ক্রিপ্টে ট্রান্সপাইল করা
-# এতে রানটাইমে tsx এর প্রয়োজন পড়বে না, সাইজ ছোট হবে।
-RUN npx esbuild server.ts --bundle --platform=node --outfile=server.js --external:next --external:socket.io --external:bullmq --external:ioredis
+# server.ts + workers esbuild দিয়ে compile
+# সব native/heavy packages external রাখা হয়েছে
+RUN npx esbuild server.ts \
+    --bundle \
+    --platform=node \
+    --outfile=server.js \
+    --external:next \
+    --external:socket.io \
+    --external:socket.io-client \
+    --external:bullmq \
+    --external:ioredis \
+    --external:@prisma/client \
+    --external:@prisma/adapter-pg \
+    --external:pg \
+    --external:unpdf \
+    --external:ai \
+    --external:@ai-sdk/groq \
+    --external:zod \
+    --external:dotenv
 
 # ---------------------------
-# Stage 3: Runner (The Final Image)
+# Stage 3: Runner
 # ---------------------------
 FROM base AS runner
 WORKDIR /app
@@ -38,15 +54,22 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN adduser  --system --uid 1001 nextjs
 
-# Standalone মোডের আউটপুট ফাইলগুলো কপি করা
+# Next.js standalone output
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 
-# ট্রান্সপাইল করা server.js কপি করা
+# Compiled server
 COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
+
+# node_modules — external packages runtime এ লাগবে
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Prisma schema + migrations
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 USER nextjs
 
@@ -54,5 +77,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# সরাসরি নোড দিয়ে রান করা (সবচেয়ে ফাস্ট পদ্ধতি)
 CMD ["node", "server.js"]

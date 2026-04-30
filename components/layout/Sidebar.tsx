@@ -3,14 +3,13 @@
 import {
   Home, FileText, Briefcase, Mic, Trophy, 
   Bot, CreditCard, ClipboardList, Menu, X, Settings,
-  ChevronLeft, ChevronRight, Crown
+  ChevronLeft, ChevronRight, Crown, LogOut // LogOut যোগ করা হয়েছে
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-// TypeScript Interface: এটি Layout এর সাথে Sidebar এর যোগাযোগ ঠিক রাখবে
 interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (value: boolean) => void;
@@ -25,7 +24,7 @@ const navItems = [
   ]},
   { group: "Career Tracking", items: [
     { name: "Find Jobs", href: "/dashboard/jobs", icon: Briefcase },
-    { name: "Applications", href: "/dashboard/applications", icon: ClipboardList },
+    { name: "Job Tracker", href: "/dashboard/tracker", icon: ClipboardList },
     { name: "Leaderboard", href: "/dashboard/leaderboard", icon: Trophy },
   ]},
   { group: "Settings", items: [
@@ -36,11 +35,8 @@ const navItems = [
 
 export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
   const pathname = usePathname();
-  
-  // মোবাইল মেনুর জন্য আলাদা স্টেট
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // পেজ চেঞ্জ হলে মোবাইল মেনু অটোমেটিক বন্ধ হবে
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
@@ -60,12 +56,11 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
       {/* মোবাইল ওভারলে */}
       {mobileOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45] lg:hidden animate-in fade-in duration-300" 
+          className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[45] lg:hidden animate-in fade-in duration-300" 
           onClick={() => setMobileOpen(false)} 
         />
       )}
 
-      {/* মেইন সাইডবার কন্টেইনার */}
       <aside
         className={cn(
           "fixed top-0 left-0 z-50 h-dvh bg-white border-r border-slate-100 flex flex-col transition-all duration-300 ease-in-out shadow-2xl lg:shadow-none",
@@ -98,12 +93,12 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
           </button>
         </div>
 
-        {/* নেভিগেশন আইটেমস */}
-        <nav className="flex-1 space-y-8 overflow-y-visible px-4 custom-scrollbar">
+        {/* নেভিগেশন আইটেমস - হালকা গ্রে থিম */}
+        <nav className="flex-1 space-y-8 overflow-y-auto px-4 custom-scrollbar">
           {navItems.map((group) => (
             <div key={group.group}>
               {!isCollapsed && (
-                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-3 animate-in fade-in duration-500">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-4 mb-3">
                   {group.group}
                 </h2>
               )}
@@ -117,27 +112,21 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all duration-200 group relative",
                         active 
-                          ? "bg-slate-900 text-white shadow-lg shadow-slate-200" 
+                          ? "bg-slate-100 text-slate-900" // Gemini/ChatGPT স্টাইল হালকা গ্রে ব্যাকগ্রাউন্ড
                           : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
                         isCollapsed && "justify-center px-0"
                       )}
                     >
                       <item.icon className={cn(
                         "w-5 h-5 min-w-[20px]",
-                        active ? "text-emerald-400" : "text-slate-400 group-hover:text-emerald-500"
+                        active ? "text-emerald-600" : "text-slate-400 group-hover:text-emerald-500"
                       )} />
                       
-                      {!isCollapsed && (
-                        <span className="animate-in fade-in slide-in-from-left-2 duration-300">
-                          {item.name}
-                        </span>
-                      )}
+                      {!isCollapsed && <span>{item.name}</span>}
                       
-                      {/* টুলটিপ (কোলাপসড মোডের জন্য) */}
                       {isCollapsed && (
-                        <div className="absolute left-full ml-4 px-3 py-2 bg-slate-900 text-white text-[11px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-[999] shadow-xl border border-slate-800 translate-x-[-10px] group-hover:translate-x-0">
+                        <div className="absolute left-full ml-4 px-3 py-2 bg-slate-900 text-white text-[11px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-[999]">
                           {item.name}
-                          <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-slate-900 rotate-45 border-l border-b border-slate-800" />
                         </div>
                       )}
                     </Link>
@@ -148,28 +137,39 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
           ))}
         </nav>
 
-        {/* আপগ্রেড কার্ড */}
-        <div className="mt-auto p-4 border-t border-slate-50">
+        {/* নিচের সেকশন: আপগ্রেড এবং লগআউট বাটন */}
+        <div className="mt-auto p-4 space-y-2">
+          {/* আপগ্রেড কার্ড */}
           <div className={cn(
-            "bg-emerald-50 rounded-[1.5rem] border border-emerald-100/50 transition-all duration-300", 
-            isCollapsed ? "p-2" : "p-5"
+            "bg-emerald-50 rounded-2xl border border-emerald-100/50 transition-all duration-300", 
+            isCollapsed ? "p-2" : "p-4"
           )}>
             {isCollapsed ? (
-              <div className="flex justify-center py-2">
-                <Crown className="w-5 h-5 text-emerald-600 animate-bounce" />
-              </div>
+              <div className="flex justify-center"><Crown className="w-5 h-5 text-emerald-600" /></div>
             ) : (
-              <>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Free Tier</p>
-                </div>
-                <button className="w-full py-2.5 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all active:scale-95">
-                  Upgrade
-                </button>
-              </>
+              <button className="w-full py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95">
+                Upgrade
+              </button>
             )}
           </div>
+
+          {/* Logout Button */}
+          <button 
+            onClick={() => console.log("Logging out...")} // আপনার সাইন আউট লজিক এখানে দিন
+            className={cn(
+              "flex items-center gap-3 w-full px-4 py-3 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-all group relative",
+              isCollapsed && "justify-center px-0"
+            )}
+          >
+            <LogOut className="w-5 h-5 min-w-[20px]" />
+            {!isCollapsed && <span>Logout</span>}
+            
+            {isCollapsed && (
+              <div className="absolute left-full ml-4 px-3 py-2 bg-red-600 text-white text-[11px] font-bold rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-[999]">
+                Logout
+              </div>
+            )}
+          </button>
         </div>
       </aside>
     </>

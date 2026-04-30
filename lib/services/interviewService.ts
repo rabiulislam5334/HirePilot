@@ -204,7 +204,7 @@ export async function getGlobalLeaderboard(limit = 20) {
   });
 
   return results.map(r => {
-    const account = accounts.find(a => a.clerkId === r.userId);
+  const account = accounts.find((a: typeof accounts[number]) => a.clerkId === r.userId);
     return {
       ...r,
       name:   account?.name  ?? "Anonymous",
@@ -235,11 +235,13 @@ export async function getInterviewAnalytics(clerkUserId: string) {
     return { sessions: [], avgScore: 0, trend: "no data", totalSessions: 0 };
   }
 
-  const avgScore  = Math.round(sessions.reduce((s, r) => s + (r.score ?? 0), 0) / sessions.length);
-  const recent    = sessions.slice(-3).map(s => s.score ?? 0);
-  const older     = sessions.slice(-6, -3).map(s => s.score ?? 0);
-  const recentAvg = recent.reduce((a, b) => a + b, 0) / (recent.length || 1);
-  const olderAvg  = older.reduce((a, b)  => a + b, 0) / (older.length  || 1);
+const avgScore = Math.round(
+  sessions.reduce((sum: number, r: { score: number | null }) => sum + (r.score ?? 0), 0) / sessions.length
+);
+const recent    = sessions.slice(-3).map((s: { score: number | null }) => s.score ?? 0);
+const older     = sessions.slice(-6, -3).map((s: { score: number | null }) => s.score ?? 0);
+const recentAvg = recent.reduce((a: number, b: number) => a + b, 0) / (recent.length || 1);
+const olderAvg  = older.reduce((a: number, b: number) => a + b, 0) / (older.length || 1); (older.length  || 1);
 
   const trend =
     older.length === 0          ? "not enough data"
