@@ -52,6 +52,13 @@ export const metadata: Metadata = {
   },
   description:
     "AI-powered mock interviews, resume optimization, and career growth tools for modern job seekers.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -3,7 +3,7 @@
 import {
   Home, FileText, Briefcase, Mic, Trophy, 
   Bot, CreditCard, ClipboardList, Menu, X, Settings,
-  ChevronLeft, ChevronRight, Crown, LogOut // LogOut যোগ করা হয়েছে
+  ChevronLeft, ChevronRight, Crown, LogOut, User // LogOut যোগ করা হয়েছে
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,6 +29,7 @@ const navItems = [
   ]},
   { group: "Settings", items: [
     { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
+    { name: 'Profile',  href: '/dashboard/profile',  icon: User },
     { name: "Settings", href: "/dashboard/settings", icon: Settings },
   ]}
 ];
