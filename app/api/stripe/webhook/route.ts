@@ -1,10 +1,7 @@
-// app/api/stripe/webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import prisma from "@/lib/prisma";
 import type Stripe from "stripe";
-
-export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const body      = await req.text();
@@ -33,7 +30,6 @@ export async function POST(req: NextRequest) {
   try {
     switch (event.type) {
 
-      // ─── Subscription Created / Updated ────────────────────────────────────
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
@@ -52,7 +48,6 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // ─── Subscription Deleted / Canceled ───────────────────────────────────
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const clerkId      = subscription.metadata?.clerkId;
@@ -68,26 +63,32 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // ─── Payment Success ────────────────────────────────────────────────────
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
         console.log(`[webhook] payment succeeded: ${invoice.id}`);
         break;
       }
 
-      // ─── Payment Failed ─────────────────────────────────────────────────────
       case "invoice.payment_failed": {
-        const invoice      = event.data.object as Stripe.Invoice;
-        const subscription = await stripe.subscriptions.retrieve(
-          invoice.subscription as string
-        );
-        const clerkId = subscription.metadata?.clerkId;
+        const invoice = event.data.object as Stripe.Invoice;
 
-        if (clerkId) {
-          await prisma.account.update({
-            where: { clerkId },
-            data:  { subscription: "free" },
-          });
+        const subscriptionId =
+          invoice.parent?.type === "subscription_details"
+            ? invoice.parent.subscription_details?.subscription
+            : null;
+
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(
+            subscriptionId as string
+          );
+          const clerkId = subscription.metadata?.clerkId;
+
+          if (clerkId) {
+            await prisma.account.update({
+              where: { clerkId },
+              data:  { subscription: "free" },
+            });
+          }
         }
 
         console.log(`[webhook] payment failed: ${invoice.id}`);

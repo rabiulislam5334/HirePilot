@@ -5,7 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import {
   User, Mail, MapPin, Code, Target,
   Plus, X, Save, Camera, Loader2,
-  Globe, Edit3, DollarSign
+  Globe, DollarSign
 } from 'lucide-react';
 import { saveUserProfile, fetchUserProfile } from '@/app/actions/profile-actions';
 import { toast } from 'sonner';
