@@ -4,6 +4,11 @@ import prisma from "@/lib/prisma";
 import type Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
+  // ✅ Stripe না থাকলে early return — build break হবে না
+  if (!stripe) {
+    return NextResponse.json({ error: "Stripe not configured" }, { status: 503 });
+  }
+
   const body      = await req.text();
   const signature = req.headers.get("stripe-signature");
 
@@ -34,16 +39,13 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const clerkId      = subscription.metadata?.clerkId;
-
         if (!clerkId) break;
 
         const status = subscription.status === "active" ? "pro" : "free";
-
         await prisma.account.update({
           where: { clerkId },
           data:  { subscription: status },
         });
-
         console.log(`[webhook] user ${clerkId} → plan: ${status}`);
         break;
       }
@@ -51,14 +53,12 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const clerkId      = subscription.metadata?.clerkId;
-
         if (!clerkId) break;
 
         await prisma.account.update({
           where: { clerkId },
           data:  { subscription: "free" },
         });
-
         console.log(`[webhook] user ${clerkId} → downgraded to free`);
         break;
       }
@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
             subscriptionId as string
           );
           const clerkId = subscription.metadata?.clerkId;
-
           if (clerkId) {
             await prisma.account.update({
               where: { clerkId },
@@ -90,7 +89,6 @@ export async function POST(req: NextRequest) {
             });
           }
         }
-
         console.log(`[webhook] payment failed: ${invoice.id}`);
         break;
       }
