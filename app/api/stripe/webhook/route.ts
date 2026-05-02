@@ -1,10 +1,11 @@
+// app/api/stripe/webhook/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import prisma from "@/lib/prisma";
 import type Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
-  // ✅ Stripe না থাকলে early return — build break হবে না
+  // ✅ Stripe null check
   if (!stripe) {
     return NextResponse.json({ error: "Stripe not configured" }, { status: 503 });
   }
@@ -70,18 +71,15 @@ export async function POST(req: NextRequest) {
       }
 
       case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
-
+        const invoice        = event.data.object as Stripe.Invoice;
         const subscriptionId =
           invoice.parent?.type === "subscription_details"
             ? invoice.parent.subscription_details?.subscription
             : null;
 
         if (subscriptionId) {
-          const subscription = await stripe.subscriptions.retrieve(
-            subscriptionId as string
-          );
-          const clerkId = subscription.metadata?.clerkId;
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
+          const clerkId      = subscription.metadata?.clerkId;
           if (clerkId) {
             await prisma.account.update({
               where: { clerkId },

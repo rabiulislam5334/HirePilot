@@ -5,6 +5,11 @@ import { stripe } from "@/lib/stripe";
 import prisma from "@/lib/prisma";
 
 export async function POST() {
+  // ✅ Stripe null check
+  if (!stripe) {
+    return NextResponse.json({ error: "Stripe not configured" }, { status: 503 });
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
