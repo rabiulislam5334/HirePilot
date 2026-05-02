@@ -18,26 +18,11 @@ export async function fetchSubscriptionStatus() {
   };
 }
 
-export async function createCheckoutSession(priceId: string) {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/checkout`,
-    {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ priceId }),
-    }
-  );
-
-  const data = await res.json();
-  return data as { url?: string; error?: string };
+// Demo mode — Stripe নেই
+export async function createCheckoutSession(_priceId: string) {
+  return { url: undefined, error: "Stripe not configured" };
 }
 
 export async function openCustomerPortal() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/portal`,
-    { method: "POST" }
-  );
-
-  const data = await res.json();
-  return data as { url?: string; error?: string };
+  return { url: undefined, error: "Stripe not configured" };
 }
