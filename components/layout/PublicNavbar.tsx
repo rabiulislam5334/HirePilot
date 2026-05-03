@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { SignInButton, SignUpButton, useUser, UserButton } from '@clerk/nextjs';
+import { useUser, UserButton } from '@clerk/nextjs';
 import { ChevronDown, Sparkles, Mic2, BarChart3, Rocket, ArrowRight } from 'lucide-react';
 
 export default function PublicNavbar() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn } = useUser();
   const router = useRouter();
 
   return (
@@ -15,9 +15,11 @@ export default function PublicNavbar() {
         
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:rotate-6 transition-all">
-            <Rocket className="text-white w-5 h-5" />
-          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#059669"/>
+  <path d="M8 10 L8 22 M8 16 L16 16 M16 10 L16 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M19 10 L24 16 L19 22" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
           <div>
             <span className="text-2xl font-bold tracking-tighter text-slate-900">
               HirePilot
@@ -81,21 +83,19 @@ export default function PublicNavbar() {
             </div>
           </div>
 
-        {[
-  { label: 'Pricing', href: '/pricing' },
-  { label: 'Dashboard', href: '/dashboard' },
-].map((item) => (
-  <Link key={item.label} href={item.href} className="text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors">
-    {item.label}
-  </Link>
-))}
+          {[
+            { label: 'Pricing', href: '/pricing' },
+            { label: 'Dashboard', href: '/dashboard' },
+          ].map((item) => (
+            <Link key={item.label} href={item.href} className="text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors">
+              {item.label}
+            </Link>
+          ))}
         </div>
 
-        {/* Right Buttons */}
+        {/* Right Buttons — isLoaded check সরানো হয়েছে */}
         <div className="flex items-center gap-3">
-          {!isLoaded ? (
-            <div className="w-32 h-10 bg-slate-100 rounded-xl animate-pulse" />
-          ) : isSignedIn ? (
+          {isSignedIn ? (
             <>
               <button
                 onClick={() => router.push('/dashboard')}
@@ -103,22 +103,20 @@ export default function PublicNavbar() {
               >
                 Dashboard
               </button>
-              {/* ফিক্স: afterSignOutUrl সরিয়ে ফেলা হয়েছে */}
               <UserButton />
             </>
           ) : (
             <>
-              <SignInButton mode="modal">
+              <Link href="/sign-in">
                 <button className="text-sm font-bold text-slate-700 hover:text-emerald-600 px-4 transition-colors cursor-pointer">
                   Log in
                 </button>
-              </SignInButton>
-              
-              <SignUpButton mode="modal">
+              </Link>
+              <Link href="/sign-up">
                 <button className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer">
                   Get Started Free
                 </button>
-              </SignUpButton>
+              </Link>
             </>
           )}
         </div>
