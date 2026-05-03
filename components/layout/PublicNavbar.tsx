@@ -15,11 +15,11 @@ export default function PublicNavbar() {
         
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#059669"/>
-  <path d="M8 10 L8 22 M8 16 L16 16 M16 10 L16 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M19 10 L24 16 L19 22" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-</svg>
+ <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:rotate-6 transition-all overflow-hidden">
+  <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" className="w-8 h-8">
+    <text x="16" y="23" fontFamily="Arial Black, sans-serif" fontSize="20" fontWeight="900" textAnchor="middle" fill="white">H</text>
+  </svg>
+</div>
           <div>
             <span className="text-2xl font-bold tracking-tighter text-slate-900">
               HirePilot
@@ -113,7 +113,7 @@ export default function PublicNavbar() {
                 </button>
               </Link>
               <Link href="/sign-up">
-                <button className="bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-600 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer">
+                <button className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 cursor-pointer">
                   Get Started Free
                 </button>
               </Link>
