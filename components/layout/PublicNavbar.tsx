@@ -81,11 +81,14 @@ export default function PublicNavbar() {
             </div>
           </div>
 
-          {['Pricing', 'Success Stories', 'About'].map((item) => (
-            <Link key={item} href={`/${item.toLowerCase().replace(' ', '-')}`} className="text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors">
-              {item}
-            </Link>
-          ))}
+        {[
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Dashboard', href: '/dashboard' },
+].map((item) => (
+  <Link key={item.label} href={item.href} className="text-sm font-semibold text-slate-600 hover:text-emerald-600 transition-colors">
+    {item.label}
+  </Link>
+))}
         </div>
 
         {/* Right Buttons */}
