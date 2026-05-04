@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Search, MapPin, DollarSign, Briefcase, Clock,
   Sparkles, Plus, ExternalLink, Loader2,
-  Filter, Building2, ChevronLeft, ChevronRight,
+  Filter, Building2, ChevronLeft, ChevronRight, Bookmark, BookmarkCheck
 } from 'lucide-react';
 import { addJobAndApply, analyzeJobMatch } from '@/app/actions/job-actions';
 import { fetchMyResumes } from '@/app/actions/resume-actions';
@@ -43,6 +43,8 @@ export default function JobSearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalJobs, setTotalJobs]     = useState(0);
+  const [savedJobs, setSavedJobs]     = useState<Set<string>>(new Set());
+  const [savingJobId, setSavingJobId] = useState<string | null>(null);
   const totalPages = Math.ceil(totalJobs / PER_PAGE);
 
   useEffect(() => {
@@ -90,7 +92,7 @@ export default function JobSearchPage() {
       setCurrentPage(page);
       if (mapped.length === 0) toast.info('No jobs found. Try different keywords.');
     } catch (err) {
-      console.error('❌ Search error:', err);
+      console.error('Search error:', err);
       toast.error('Search failed. Check console for details.');
     }
     setIsLoading(false);
@@ -130,6 +132,27 @@ export default function JobSearchPage() {
     setAddingJobId(null);
   }
 
+  async function handleSaveJob(job: Job) {
+    if (!selectedResume) { toast.error('Please select a resume first'); return; }
+    if (savedJobs.has(job.id)) {
+      toast.info('Already saved to wishlist');
+      return;
+    }
+    setSavingJobId(job.id);
+    const result = await addJobAndApply({
+      resumeId: selectedResume, jobTitle: job.title, company: job.company,
+      jobDescription: job.description, location: job.location,
+      salaryRange: job.salary,
+    });
+    if (result.success) {
+      setSavedJobs(prev => new Set([...prev, job.id]));
+      toast.success(`${job.title} saved to Wishlist!`);
+    } else {
+      toast.error(result.error ?? 'Failed to save');
+    }
+    setSavingJobId(null);
+  }
+
   const getScoreColor = (score: number) =>
     score >= 80 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' :
     score >= 60 ? 'text-amber-600 bg-amber-50 border-amber-200' :
@@ -150,7 +173,7 @@ export default function JobSearchPage() {
     return (
       <div className="flex items-center justify-center gap-1.5 pt-3 pb-2">
         <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || isLoading}
-          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-all">
           <ChevronLeft className="w-4 h-4 text-slate-500" />
         </button>
         {pages.map((p, i) =>
@@ -160,15 +183,15 @@ export default function JobSearchPage() {
             <button key={p} onClick={() => handlePageChange(p as number)} disabled={isLoading}
               className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${
                 currentPage === p
-                  ? 'bg-slate-700 text-white'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                  : 'border border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
               }`}>
               {p}
             </button>
           )
         )}
         <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages || isLoading}
-          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+          className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 transition-all">
           <ChevronRight className="w-4 h-4 text-slate-500" />
         </button>
       </div>
@@ -187,7 +210,7 @@ export default function JobSearchPage() {
       {/* Resume selector */}
       {resumes.length > 0 && (
         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
-          <Sparkles className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+          <Sparkles className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
           <span className="text-xs font-semibold text-slate-500">Match against:</span>
           <select value={selectedResume} onChange={e => setSelectedResume(e.target.value)}
             className="flex-1 bg-transparent text-xs font-semibold text-slate-700 focus:outline-none">
@@ -208,7 +231,7 @@ export default function JobSearchPage() {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && searchJobs(1)}
               placeholder="Job title, skills, or keywords..."
-              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition-all"
+              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all"
             />
           </div>
           <div className="relative">
@@ -217,11 +240,12 @@ export default function JobSearchPage() {
               value={location}
               onChange={e => setLocation(e.target.value)}
               placeholder="Location (optional)"
-              className="pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition-all w-44"
+              className="pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white transition-all w-44"
             />
           </div>
+          {/* ✅ Search button — slate-50 bg, light */}
           <button onClick={() => searchJobs(1)} disabled={isLoading}
-            className="px-5 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-semibold text-sm transition-all disabled:opacity-50 flex items-center gap-2">
+            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 flex items-center gap-2">
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Search
           </button>
@@ -234,8 +258,8 @@ export default function JobSearchPage() {
             <button key={type} onClick={() => setJobType(jobType === type ? '' : type)}
               className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
                 jobType === type
-                  ? 'bg-slate-700 text-white border-slate-700'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  ? 'bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
               }`}>
               {type}
             </button>
@@ -248,7 +272,7 @@ export default function JobSearchPage() {
             <span className="text-xs font-semibold text-slate-400">Popular:</span>
             {POPULAR_SEARCHES.map(s => (
               <button key={s} onClick={() => setQuery(s)}
-                className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium text-slate-600 transition-all">
+                className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-medium text-slate-500 transition-all">
                 {s}
               </button>
             ))}
@@ -256,29 +280,29 @@ export default function JobSearchPage() {
         )}
       </div>
 
-      {/* Results — LinkedIn layout with fixed height scroll */}
+      {/* Results */}
       {isLoading ? (
         <div className="flex items-center justify-center flex-1 py-16">
           <div className="text-center space-y-2">
-            <Loader2 className="w-8 h-8 animate-spin text-slate-400 mx-auto" />
-            <p className="text-slate-500 text-sm">Searching jobs...</p>
+            <Loader2 className="w-8 h-8 animate-spin text-slate-300 mx-auto" />
+            <p className="text-slate-400 text-sm">Searching jobs...</p>
           </div>
         </div>
       ) : jobs.length > 0 ? (
         <div className="flex gap-4 flex-1 min-h-0">
 
-          {/* ── Left: Scrollable Job List ── */}
+          {/* Left: Job List */}
           <div className="w-80 flex-shrink-0 flex flex-col min-h-0">
             <p className="text-xs font-semibold text-slate-400 mb-2 flex-shrink-0">
               {totalJobs.toLocaleString()} results · Page {currentPage}/{totalPages}
             </p>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {jobs.map(job => (
                 <div key={job.id}
                   onClick={() => { setSelectedJob(job); getMatchScore(job); }}
-                  className={`bg-white border rounded-xl p-3.5 cursor-pointer transition-all hover:shadow-sm ${
+                  className={`bg-white border rounded-xl p-3.5 cursor-pointer transition-all hover:shadow-sm group ${
                     selectedJob?.id === job.id
-                      ? 'border-slate-400 shadow-sm bg-slate-50'
+                      ? 'border-slate-300 shadow-sm bg-slate-50'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}>
                   <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -289,13 +313,27 @@ export default function JobSearchPage() {
                         <span className="truncate">{job.company}</span>
                       </div>
                     </div>
-                    {job.isAnalyzing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400 flex-shrink-0 mt-0.5" />
-                    ) : job.matchScore !== undefined ? (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 border ${getScoreColor(job.matchScore)}`}>
-                        {job.matchScore}%
-                      </span>
-                    ) : null}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Bookmark button */}
+                      <button
+                        onClick={e => { e.stopPropagation(); handleSaveJob(job); }}
+                        disabled={savingJobId === job.id}
+                        className="p-1 rounded-lg hover:bg-slate-100 transition-all"
+                        title="Save to Wishlist">
+                        {savingJobId === job.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                          : savedJobs.has(job.id)
+                          ? <BookmarkCheck className="w-3.5 h-3.5 text-[#10a37f]" />
+                          : <Bookmark className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />}
+                      </button>
+                      {job.isAnalyzing ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" />
+                      ) : job.matchScore !== undefined ? (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${getScoreColor(job.matchScore)}`}>
+                          {job.matchScore}%
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-400">
                     <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location}</span>
@@ -309,18 +347,16 @@ export default function JobSearchPage() {
                 </div>
               ))}
             </div>
-            {/* Pagination inside scroll area bottom */}
             <div className="flex-shrink-0">
               <Pagination />
             </div>
           </div>
 
-          {/* ── Right: Job Detail (sticky, full scroll) ── */}
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+          {/* Right: Job Detail */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {selectedJob ? (
               <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
 
-                {/* Title + company */}
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-bold text-slate-800 mb-1">{selectedJob.title}</h2>
@@ -337,7 +373,6 @@ export default function JobSearchPage() {
                   )}
                 </div>
 
-                {/* Meta badges */}
                 <div className="flex flex-wrap gap-2">
                   {selectedJob.salary && (
                     <span className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold">
@@ -356,40 +391,55 @@ export default function JobSearchPage() {
                   )}
                 </div>
 
-                {/* AI Match button */}
                 {selectedJob.matchScore === undefined && !selectedJob.isAnalyzing && (
                   <button onClick={() => getMatchScore(selectedJob)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-all">
-                    <Sparkles className="w-4 h-4 text-violet-500" /> Check AI Match Score
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 transition-all">
+                    <Sparkles className="w-4 h-4 text-violet-400" /> Check AI Match Score
                   </button>
                 )}
                 {selectedJob.isAnalyzing && (
-                  <div className="flex items-center justify-center gap-2 py-2.5 bg-slate-50 rounded-xl text-sm font-semibold text-slate-500">
+                  <div className="flex items-center justify-center gap-2 py-2.5 bg-slate-50 rounded-xl text-sm text-slate-500">
                     <Loader2 className="w-4 h-4 animate-spin" /> Analyzing match...
                   </div>
                 )}
 
-                {/* Full Description — no line-clamp */}
                 <div>
-                  <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">Job Description</h3>
+                  <h3 className="font-semibold text-slate-500 mb-3 text-xs uppercase tracking-wide">Job Description</h3>
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
                     {selectedJob.description}
                   </p>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-2 border-t border-slate-100">
+                  {/* ✅ Save to Wishlist button — light */}
+                  <button
+                    onClick={() => handleSaveJob(selectedJob)}
+                    disabled={savingJobId === selectedJob.id || savedJobs.has(selectedJob.id)}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border ${
+                      savedJobs.has(selectedJob.id)
+                        ? 'bg-[#10a37f]/10 border-[#10a37f]/30 text-[#10a37f] cursor-default'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}>
+                    {savingJobId === selectedJob.id
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : savedJobs.has(selectedJob.id)
+                      ? <><BookmarkCheck className="w-4 h-4" /> Saved</>
+                      : <><Bookmark className="w-4 h-4" /> Save</>}
+                  </button>
+
+                  {/* ✅ Add to Tracker button — light */}
                   <button
                     onClick={() => handleAddToTracker(selectedJob)}
                     disabled={addingJobId === selectedJob.id}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50">
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl font-semibold text-sm transition-all disabled:opacity-50">
                     {addingJobId === selectedJob.id
                       ? <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
                       : <><Plus className="w-4 h-4" /> Add to Tracker</>}
                   </button>
+
                   {selectedJob.url && (
                     <a href={selectedJob.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl font-semibold text-sm text-slate-600 transition-all">
+                      className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-xl font-semibold text-sm text-slate-600 transition-all">
                       <ExternalLink className="w-4 h-4" /> Apply
                     </a>
                   )}

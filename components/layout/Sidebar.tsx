@@ -3,7 +3,7 @@
 import {
   Home, FileText, Briefcase, Mic, Trophy, 
   Bot, CreditCard, ClipboardList, Menu, X, Settings,
-  ChevronLeft, ChevronRight, Crown, LogOut, User // LogOut যোগ করা হয়েছে
+  ChevronLeft, ChevronRight, Crown, LogOut, User, MessageSquare,Bell // LogOut যোগ করা হয়েছে
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,11 +21,17 @@ const navItems = [
     { name: "My Resumes", href: "/dashboard/resumes", icon: FileText },
     { name: "Mock Interviews", href: "/dashboard/mock-interviews", icon: Mic },
     { name: "AI Coach", href: "/dashboard/coach", icon: Bot },
+     { name: 'Cover Letter', href: '/dashboard/cover-letter', icon: FileText },
   ]},
   { group: "Career Tracking", items: [
+   
+
+
     { name: "Find Jobs", href: "/dashboard/jobs", icon: Briefcase },
     { name: "Job Tracker", href: "/dashboard/tracker", icon: ClipboardList },
     { name: "Leaderboard", href: "/dashboard/leaderboard", icon: Trophy },
+    { name: 'Community',    href: '/dashboard/chat',         icon: MessageSquare },
+    { name: 'Notifications',href: '/dashboard/notifications',icon: Bell },
   ]},
   { group: "Settings", items: [
     { name: "Billing", href: "/dashboard/billing", icon: CreditCard },

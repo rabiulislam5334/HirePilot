@@ -67,7 +67,7 @@ export default function Hero() {
           className="flex flex-col sm:flex-row gap-5 justify-center items-center"
         >
           <Link href="/sign-up">
-            <Button size="lg" className="bg-slate-900 hover:bg-emerald-600 text-white text-lg h-16 px-10 rounded-2xl group transition-all duration-300 shadow-xl shadow-emerald-500/10">
+            <Button size="lg" className="bg-emerald-600 hover:bg-emerald-400 text-white text-lg h-16 px-10 rounded-2xl group transition-all duration-300 shadow-xl shadow-emerald-500/10">
               Get Started Free 
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
