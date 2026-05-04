@@ -124,7 +124,7 @@ export default function NotificationsPage() {
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
               filter === f
-                ? 'bg-slate-900 text-white border-slate-900'
+                ? 'bg-slate-100 text-slate-600 border-slate-100'
                 : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}>
             {f}

@@ -270,7 +270,7 @@ export default function PeerChatPage() {
                           )}
                           <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                             isMe
-                              ? 'bg-slate-900 text-white rounded-br-sm'
+                              ? 'bg-emerald-500 text-white rounded-br-sm'
                               : 'bg-slate-100 text-slate-800 rounded-bl-sm'
                           }`}>
                             {msg.content}
@@ -300,7 +300,7 @@ export default function PeerChatPage() {
               className="flex-1 bg-transparent text-sm focus:outline-none resize-none max-h-32 leading-relaxed"
             />
             <button onClick={handleSend} disabled={!input.trim() || isSending}
-              className="w-9 h-9 bg-slate-900 hover:bg-emerald-600 disabled:bg-slate-200 text-white rounded-xl flex items-center justify-center transition-all flex-shrink-0">
+              className="w-9 h-9 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 text-white rounded-xl flex items-center justify-center transition-all flex-shrink-0">
               {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </button>
           </div>
