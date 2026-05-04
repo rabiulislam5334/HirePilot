@@ -74,6 +74,31 @@ app.prepare().then(() => {
     socket.on("leave_session", (sessionId: string) => {
       socket.leave(`session:${sessionId}`);
     });
+    // ─── Chat Rooms ───────────────────────────────────────────────────────────────
+
+socket.on("join_chat_room", (roomId: string) => {
+  socket.join(`chat:${roomId}`);
+  const count = io.sockets.adapter.rooms.get(`chat:${roomId}`)?.size ?? 0;
+  io.to(`chat:${roomId}`).emit("room_count", { roomId, count });
+});
+
+socket.on("leave_chat_room", (roomId: string) => {
+  socket.leave(`chat:${roomId}`);
+  const count = io.sockets.adapter.rooms.get(`chat:${roomId}`)?.size ?? 0;
+  io.to(`chat:${roomId}`).emit("room_count", { roomId, count });
+});
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+socket.on("join_notifications", () => {
+  // user নিজের notification room এ join করবে
+  // userId socket handshake থেকে নেওয়া যাবে production এ
+  socket.join(`notifications:${socket.id}`);
+});
+
+socket.on("leave_notifications", () => {
+  socket.leave(`notifications:${socket.id}`);
+});
 
     // ─── Disconnect ────────────────────────────────────────────────────────
 

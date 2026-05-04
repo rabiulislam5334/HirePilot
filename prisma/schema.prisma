@@ -21,6 +21,8 @@ model Account {
   interviews       InterviewSession[]
   leaderboard      Leaderboard?
   resumes          Resume[]
+  notifications  Notification[]   
+  chatMessages   ChatMessage[] 
 }
 
 model Resume {
@@ -120,4 +122,30 @@ model CoachChat {
   user      Account  @relation(fields: [userId], references: [clerkId])
 
   @@index([userId])
+}
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      Account  @relation(fields: [userId], references: [clerkId])
+  type      String   // interview | resume | leaderboard | job | coach | system
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  content   String   @db.Text
+  senderId  String
+  sender    Account  @relation(fields: [senderId], references: [clerkId])
+  createdAt DateTime @default(now())
+
+  @@index([roomId])
+  @@index([senderId])
 }
