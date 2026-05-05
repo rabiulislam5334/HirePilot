@@ -5,11 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Sparkles, ArrowRight, Play, Star, Users, Trophy, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
-const STATS = [
-  { icon: Users,     value: '2,400+', label: 'Job Seekers' },
-  { icon: Trophy,    value: '89%',    label: 'Interview Rate' },
-  { icon: TrendingUp,value: '10x',    label: 'Faster Hiring' },
-];
+
 
 const AVATARS = [
   'https://i.pravatar.cc/40?img=1',
@@ -205,20 +201,7 @@ export default function Hero() {
           </motion.div>
         </div>
 
-        {/* ── Bottom Stats ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9, duration: 0.6 }}
-          className="mt-20 pt-8 border-t border-slate-100 grid grid-cols-3 gap-8 max-w-2xl mx-auto"
-        >
-          {STATS.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-3xl font-black text-slate-900 mb-1">{stat.value}</p>
-              <p className="text-sm text-slate-400 font-medium">{stat.label}</p>
-            </div>
-          ))}
-        </motion.div>
+    
       </div>
     </section>
   );
